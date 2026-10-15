@@ -18,3 +18,9 @@ Tap prices to pick, add confidence, then use **Share link** in the picks tray. I
 
 ## Bet Ledger (`/ledger`)
 A copy of the personal bet tracker at https://pittardj.github.io/bet-tracker/ledger/. On GitHub Pages it runs in single-browser mode: bets, picks and confidence are saved in that browser only (use Export CSV to back up), and it reads the same `lines.json` as the board. Account sync, two-player picks, comments and bet-history import need the Claude-hosted version.
+
+## Google sign-in (Firebase)
+Signing in with Google syncs a person's picks, confidence and comments across devices, and **Copy invite link** (`?g=<group>`) lets friends join the same group to see each other's picks side by side, with comments on each game.
+- `firebase-config.js` holds the Firebase web config (public by design). With it set to `null` the board runs without sign-in.
+- `firestore.rules` are the database security rules: group members can read each other's picks; each person can write only their own.
+- In the Firebase console: enable Authentication → Google, create a Firestore database, paste `firestore.rules`, and add `pittardj.github.io` and `fantalytics.pro` under Authentication → Settings → Authorized domains.

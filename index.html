@@ -58,6 +58,26 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .btns{display:flex;gap:6px;flex-wrap:wrap}
 .primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 .toast{font-size:.8rem;color:var(--accent)}
+.auth{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.85rem}
+.gbtn{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+.gbtn svg{width:16px;height:16px}
+.groupbar{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:.88rem}
+.odd{position:relative}
+.who{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:.62rem;font-weight:700;line-height:16px;text-align:center}
+.cmt{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px}
+.cbtn{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:.82rem;font-weight:600;text-align:left;display:flex;justify-content:space-between;gap:8px;min-width:0}
+.cbtn .ct{color:var(--accent)}
+.cbtn .last{color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cm{font-size:.85rem;background:var(--bg);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere}
+.cm .by{font-weight:600}.cm .ts{color:var(--muted);font-size:.72rem}
+.cm .del{background:transparent;border:0;color:var(--muted);font-size:.72rem;padding:0 0 0 6px}
+.cform{display:flex;gap:6px}.cform input{flex:1;min-width:0;padding:6px 8px;font-size:.85rem;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.h2h{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.h2hwrap{overflow-x:auto}
+.h2h table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:420px}
+.h2h th,.h2h td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.h2h th{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:.72rem;color:var(--muted)}
+.h2h td.agree{background:var(--sel)}
 .foot{font-size:.75rem;color:var(--muted)}
 .foot a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -71,15 +91,19 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <div class="note" id="updated">Loading lines…</div>
     </div>
     <div class="ctl">
+      <div class="auth" id="authBox" hidden></div>
       <label for="book" class="note">Prices from</label>
       <select id="book"></select>
     </div>
   </div>
+  <div class="groupbar" id="groupBar" hidden></div>
   <div class="shared" id="sharedBar" hidden></div>
   <div class="games" id="games"></div>
   <div class="tray" id="tray" hidden></div>
-  <div class="foot">Tap a price to mark your pick; tap again to clear it. Add a 1–10 confidence on the right. Picks are saved in this browser. Lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>, refreshed several times a day. Check your sportsbook for its current price before betting. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
+  <div class="h2h" id="h2h" hidden></div>
+  <div class="foot">Tap a price to mark your pick; tap again to clear it. Add a 1–10 confidence on the right. Picks are saved in this browser, or to your account when you sign in with Google. Lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>, refreshed several times a day. Check your sportsbook for its current price before betting. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
 </div>
+<script src="firebase-config.js"></script>
 <script>
 (function(){
 const $=id=>document.getElementById(id);
@@ -95,7 +119,7 @@ try{const raw=qs.get("p");if(raw){const arr=JSON.parse(decodeURIComponent(escape
   const picks={},conf={};for(const [g,k,l,pr,bk,c,at] of arr){picks[g+"_"+k]={gameId:g,side:k,line:l,price:pr,book:bk,text:"",at:new Date(at||Date.now()).toISOString()};if(c)conf[g]=c;}
   shared={picks,conf,name:(qs.get("n")||"").slice(0,40)};}}catch(_){shared=null;}
 const view=()=>shared||state;
-const save=()=>{try{localStorage.setItem(LS,JSON.stringify(state));}catch(_){}};
+const save=()=>{try{localStorage.setItem(LS,JSON.stringify(state));}catch(_){}cloudSave();};
 
 const dec=o=>{o=+o;return o>0?1+o/100:1+100/Math.abs(o);};
 const oddsStr=o=>o==null?"–":(o>0?"+":"")+o;
@@ -133,20 +157,21 @@ function render(){
     if([...sel.options].some(o=>o.value===state.book))sel.value=state.book;}
   const book=sel.value,now=Date.now();
   const games=board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3);
-  const fid=document.activeElement&&document.activeElement.dataset.conf;
+  const ae=document.activeElement;const fid=ae&&ae.dataset.conf;const cid=ae&&ae.dataset.cin;
   $("games").innerHTML=games.map(g=>{
     const cell=k=>{const q=quote(g,k,book);if(!q)return `<button type="button" class="odd" disabled>–</button>`;
       const top=k==="o"?"o"+q.line:k==="u"?"u"+q.line:q.line!==undefined?fmtLine(q.line):oddsStr(q.price);
-      const on=!!view().picks[g.id+"_"+k];
-      return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}</button>`;};
+      const on=!!view().picks[g.id+"_"+k];const who=shared?[]:others().filter(([,d])=>d.picks&&d.picks[g.id+"_"+k]);
+      return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}${who.length?`<span class="who" title="Also picked by ${esc(who.map(([,d])=>d.name||"Player").join(", "))}">${esc(who.map(([,d])=>(d.name||"?").charAt(0).toUpperCase()).join(""))}</span>`:""}</button>`;};
     const d=new Date(g.kick),c=view().conf[g.id];
     return `<div class="game"><div class="kick">${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
       <span></span><span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
       <label class="conf"><span class="colh">Conf</span><input id="c-${g.id}" data-conf="${g.id}" class="${c!=null?"set":""}" inputmode="numeric" maxlength="2" placeholder="–" value="${c!=null?c:""}" aria-label="Confidence 1 to 10, ${esc(g.away)} at ${esc(g.home)}"></label>
       <span class="tm" title="${esc(g.away)}">${esc(g.a)} <span class="note">${esc(nick(g.away))}</span></span>${cell("sa")}${cell("o")}${cell("ma")}
-      <span class="tm" title="${esc(g.home)}">@ ${esc(g.h)} <span class="note">${esc(nick(g.home))}</span></span>${cell("sh")}${cell("u")}${cell("mh")}</div>`;}).join("")||`<p class="note">No upcoming games right now. Check back when next week's lines post.</p>`;
+      <span class="tm" title="${esc(g.home)}">@ ${esc(g.h)} <span class="note">${esc(nick(g.home))}</span></span>${cell("sh")}${cell("u")}${cell("mh")}${commentRow(g)}</div>`;}).join("")||`<p class="note">No upcoming games right now. Check back when next week's lines post.</p>`;
   if(fid){const el=$("c-"+fid);if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(_){}}}
-  renderTray(games);
+  if(cid){const el=$("cin-"+cid);if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(_){}}}
+  renderTray(games);renderAuth();renderH2H(games);
 }
 function renderShared(){const bar=$("sharedBar");if(!shared){bar.hidden=true;return;}bar.hidden=false;
   bar.innerHTML=`<span>You're viewing ${shared.name?esc(shared.name)+"'s":"a shared"} picks card. Picked prices are compared with the current consensus.</span><span class="btns"><button type="button" id="saveShared">Save to my picks</button><button type="button" class="primary" id="exitShared">Make my own</button></span>`;
@@ -167,10 +192,10 @@ $("games").addEventListener("click",e=>{const b=e.target.closest("button[data-g]
   const g=board.games.find(x=>x.id===b.dataset.g),k=b.dataset.k,id=g.id+"_"+k;
   if(state.picks[id])delete state.picks[id];
   else{const q=quote(g,k,$("book").value);if(!q)return;state.picks[id]={gameId:g.id,side:k,line:q.line===undefined?null:q.line,price:q.price,book:q.book,text:pickText(g,k),at:new Date().toISOString()};}
-  save();render();});
+  if(user&&players[user.uid])players[user.uid]={...players[user.uid],picks:state.picks};save();render();});
 $("games").addEventListener("input",e=>{const t=e.target;if(!t.dataset.conf)return;if(shared){t.value=shared.conf[t.dataset.conf]||"";return;}t.value=t.value.replace(/[^0-9]/g,"").slice(0,2);
   if(t.value==="")delete state.conf[t.dataset.conf];else{state.conf[t.dataset.conf]=Math.max(1,Math.min(10,+t.value));}
-  t.classList.toggle("set",t.value!=="");save();renderTray(board.games.filter(g=>new Date(g.kick).getTime()>Date.now()-4*3600e3));});
+  t.classList.toggle("set",t.value!=="");if(user&&players[user.uid])players[user.uid]={...players[user.uid],conf:state.conf};save();renderTray(board.games.filter(g=>new Date(g.kick).getTime()>Date.now()-4*3600e3));});
 $("games").addEventListener("change",e=>{const t=e.target;if(t.dataset.conf&&t.value!=="")t.value=state.conf[t.dataset.conf];});
 function cardText(list){const v=view();return (board.label||"NFL")+" picks\n"+list.map(p=>{const g=board.games.find(x=>x.id===p.gameId);if(!g)return"";
   const c=v.conf[p.gameId];return `${pickText(g,p.side)} ${fmtQ(p.side,p.line==null?{price:p.price}:{line:p.line,price:p.price})}${p.book&&p.book!=="Consensus"&&p.book!=="Best"?" ("+p.book+")":""}${c?" · conf "+c+"/10":""} | ${g.a} @ ${g.h}`;}).filter(Boolean).join("\n");}
@@ -185,12 +210,94 @@ $("tray").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)
   if(b.dataset.clear)state.picks={};else if(b.dataset.rm)delete state.picks[b.dataset.rm];save();render();});
 $("book").addEventListener("change",()=>{state.book=$("book").value;save();render();});
 
+
+/* ---------- Google sign-in, groups, comments (Firebase) ---------- */
+let user=null,group=null,players={},myRef=null,cloudTimer=null,pending=0,unsub=null,fdb=null,cloudOn=false,authMsg="";
+const openCm=new Set(),drafts={};
+const others=()=>Object.entries(players).filter(([id])=>!user||id!==user.uid);
+function cloudSave(){if(!myRef||!user)return;pending++;clearTimeout(cloudTimer);cloudTimer=setTimeout(async()=>{
+  try{await myRef.set({name:user.displayName||"Player",picks:state.picks||{},conf:state.conf||{},comments:state.comments||{},at:firebase.firestore.FieldValue.serverTimestamp()});}
+  catch(e){authMsg="Couldn't save to your account. Your picks are still saved in this browser.";renderAuth();}
+  finally{pending=Math.max(0,pending-1);}},400);}
+const rid=()=>Array.from(crypto.getRandomValues(new Uint8Array(8)),b=>"abcdefghjkmnpqrstuvwxyz23456789"[b%31]).join("");
+const siteBase=()=>qs.get("site")||(location.origin+location.pathname);
+function loadScript(src){return new Promise((ok,no)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=no;document.head.appendChild(s);});}
+async function initCloud(){
+  const cfg=window.FIREBASE_CONFIG;if(!cfg||!cfg.apiKey)return;
+  try{const v="10.12.2";await loadScript(`https://www.gstatic.com/firebasejs/${v}/firebase-app-compat.js`);
+    await Promise.all([loadScript(`https://www.gstatic.com/firebasejs/${v}/firebase-auth-compat.js`),loadScript(`https://www.gstatic.com/firebasejs/${v}/firebase-firestore-compat.js`)]);}
+  catch(_){return;}
+  firebase.initializeApp(cfg);fdb=firebase.firestore();cloudOn=true;renderAuth();
+  firebase.auth().onAuthStateChanged(async u=>{user=u;if(unsub){unsub();unsub=null;}
+    if(!u){myRef=null;group=null;players={};render();return;}
+    try{await joinGroup(qs.get("g"));}catch(e){authMsg="Signed in, but couldn't load your group. Try reloading.";}
+    render();});
+}
+async function joinGroup(wanted){
+  const u=user;const uref=fdb.collection("users").doc(u.uid);const us=await uref.get();
+  let g=wanted||(us.exists&&us.data().group)||rid();
+  const gref=fdb.collection("groups").doc(g);const gs=await gref.get();
+  if(!gs.exists)await gref.set({owner:u.uid,created:firebase.firestore.FieldValue.serverTimestamp()});
+  await uref.set({group:g},{merge:true});
+  const ref=gref.collection("players").doc(u.uid);const me=await ref.get();
+  if(me.exists){const d=me.data();state.picks={...(d.picks||{}),...(state.picks||{})};state.conf={...(d.conf||{}),...(state.conf||{})};state.comments=d.comments||state.comments||{};}
+  await ref.set({name:u.displayName||"Player",picks:state.picks||{},conf:state.conf||{},comments:state.comments||{},at:firebase.firestore.FieldValue.serverTimestamp()});
+  group=g;myRef=ref;try{localStorage.setItem(LS,JSON.stringify(state));}catch(_){}
+  if(unsub)unsub();
+  unsub=gref.collection("players").onSnapshot(s=>{players={};s.forEach(d=>{players[d.id]=d.data();});
+    const mine=players[u.uid];if(mine&&!pending){state.picks=mine.picks||{};state.conf=mine.conf||{};state.comments=mine.comments||{};try{localStorage.setItem(LS,JSON.stringify(state));}catch(_){}}
+    if(!document.activeElement||!document.activeElement.dataset||!(document.activeElement.dataset.conf||document.activeElement.dataset.cin))render();},()=>{});
+  if(qs.get("g")){qs.delete("g");history.replaceState(null,"",location.pathname+(qs.toString()?"?"+qs:""));}
+}
+const G_ICON='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.2-3.9 7.2-9.6 7.2-16.9z"/><path fill="#FBBC05" d="M10.5 28.6A14.4 14.4 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.1-5.5c-2.2 1.5-5 2.3-8.8 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
+function renderAuth(){const box=$("authBox"),bar=$("groupBar");if(!cloudOn){box.hidden=true;bar.hidden=true;return;}box.hidden=false;
+  if(!user){box.innerHTML=`<button type="button" class="gbtn" id="signIn">${G_ICON}Sign in with Google</button>`;
+    bar.hidden=!authMsg;bar.innerHTML=authMsg?`<span>${esc(authMsg)}</span>`:"";return;}
+  box.innerHTML=`<span>${esc(user.displayName||user.email||"Signed in")}</span><button type="button" id="signOut">Sign out</button>`;
+  const n=Object.keys(players).length;bar.hidden=false;
+  bar.innerHTML=`<span>${authMsg?esc(authMsg)+" ":""}${n>1?`Picking with ${esc(others().map(([,d])=>d.name||"Player").join(", "))}.`:"Invite someone to pick with you. They sign in with Google and see your picks side by side."}</span>
+    <span class="btns"><span class="toast" id="gtoast" aria-live="polite"></span><button type="button" class="primary" id="invite">Copy invite link</button>${n>1?`<button type="button" id="leave">Leave group</button>`:""}</span>`;}
+function allComments(gid){const out=[];for(const [id,d] of Object.entries(players))((d.comments||{})[gid]||[]).forEach(c=>out.push({...c,uid:id,name:d.name}));
+  if(!user)((state.comments||{})[gid]||[]).forEach(c=>out.push({...c,uid:"me"}));
+  return out.sort((a,b)=>String(a.at).localeCompare(String(b.at)));}
+function commentRow(g){if(!cloudOn||shared)return"";
+  if(!user)return `<div class="cmt"><button type="button" class="cbtn" data-signin="1"><span>Comments</span><span class="ct">Sign in to comment</span></button></div>`;
+  const list=allComments(g.id);const last=list[list.length-1];const me=c=>user&&c.uid===user.uid;
+  if(!openCm.has(g.id))return `<div class="cmt"><button type="button" class="cbtn" data-cm="${g.id}" aria-expanded="false"><span>Comments${list.length?` <span class="ct">${list.length}</span>`:""}</span>${last?`<span class="last">${esc(me(last)?"You":last.name||"Player")}: ${esc(last.text)}</span>`:`<span class="ct">+ Add</span>`}</button></div>`;
+  return `<div class="cmt"><button type="button" class="cbtn" data-cm="${g.id}" aria-expanded="true"><span>Comments</span><span class="ct">Hide</span></button>
+    ${list.map(c=>`<div class="cm"><span class="by">${esc(me(c)?"You":c.name||"Player")}</span> <span class="ts">${esc(fmtAt(c.at))}</span>${me(c)?`<button type="button" class="del" data-cdel="${g.id}" data-cid="${esc(c.id)}">Delete</button>`:""}<div>${esc(c.text)}</div></div>`).join("")||`<span class="note">No comments yet.</span>`}
+    <form class="cform" data-cform="${g.id}"><input id="cin-${g.id}" data-cin="${g.id}" maxlength="280" placeholder="Why you like it, or trash talk" value="${esc(drafts[g.id]||"")}" aria-label="Comment on ${esc(g.away)} at ${esc(g.home)}"><button type="submit" class="primary">Post</button></form></div>`;}
+function renderH2H(games){const el=$("h2h");if(!user||shared||others().length===0){el.hidden=true;return;}
+  const ids=[user.uid,...others().map(([id])=>id)];const P=id=>players[id]||{};
+  const rows=games.filter(g=>ids.some(id=>Object.values(P(id).picks||{}).some(p=>p.gameId===g.id)));
+  if(!rows.length){el.hidden=true;return;}el.hidden=false;
+  el.innerHTML=`<span class="lbl">Head to head</span><div class="h2hwrap"><table><thead><tr><th>Game</th>${ids.map(id=>`<th>${esc(id===user.uid?"You":P(id).name||"Player")}</th>`).join("")}</tr></thead><tbody>`+
+    rows.map(g=>{const sides=ids.map(id=>Object.values(P(id).picks||{}).filter(p=>p.gameId===g.id).map(p=>p.side).sort().join());const agree=sides.every(x=>x&&x===sides[0]);
+      return `<tr><td>${esc(g.a)} @ ${esc(g.h)}</td>`+ids.map(id=>{const ps=Object.values(P(id).picks||{}).filter(p=>p.gameId===g.id);const c=(P(id).conf||{})[g.id];
+        return `<td class="${agree?"agree":""}">${ps.length?ps.map(p=>`<strong>${esc(p.text||pickText(g,p.side))}</strong> <span class="num">${esc(fmtQ(p.side,p.line==null?{price:p.price}:{line:p.line,price:p.price}))}</span>`).join("<br>"):`<span class="note">–</span>`}${c!=null?`<div class="note">Conf ${esc(c)}</div>`:""}</td>`;}).join("")+`</tr>`;}).join("")+
+    `</tbody></table></div><span class="note">Shaded rows are games where everyone agrees.</span>`;}
+async function signIn(){authMsg="";try{await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());}
+  catch(e){const inFrame=window.top!==window.self;
+    authMsg=e&&e.code==="auth/popup-closed-by-user"?"":inFrame?"Sign-in was blocked inside this page. Open the board full page to sign in.":"Sign-in didn't finish. Allow pop-ups for this site and try again.";
+    renderAuth();if(inFrame&&authMsg)$("groupBar").insertAdjacentHTML("beforeend",`<a class="primary" style="padding:6px 12px;border-radius:6px;text-decoration:none" href="${esc(location.href)}" target="_blank" rel="noopener">Open full page</a>`);}}
+document.addEventListener("click",async e=>{const t=e.target.closest("button,a");if(!t)return;
+  if(t.id==="signIn"||t.dataset.signin)return signIn();
+  if(t.id==="signOut"){await firebase.auth().signOut();return;}
+  if(t.id==="invite"){const link=siteBase()+"?g="+group;const tt=$("gtoast");try{await navigator.clipboard.writeText(link);tt.textContent="Link copied";}catch(_){window.prompt("Send this link:",link);}setTimeout(()=>{const x=$("gtoast");if(x)x.textContent="";},2500);return;}
+  if(t.id==="leave"){if(unsub){unsub();unsub=null;}try{await myRef.delete();}catch(_){}players={};await joinGroup(rid());render();return;}
+  if(t.dataset.cm){const g=t.dataset.cm;openCm.has(g)?openCm.delete(g):openCm.add(g);render();const i=$("cin-"+g);if(i)i.focus();return;}
+  if(t.dataset.cdel){const g=t.dataset.cdel;state.comments={...(state.comments||{})};state.comments[g]=(state.comments[g]||[]).filter(c=>c.id!==t.dataset.cid);if(!state.comments[g].length)delete state.comments[g];
+    if(players[user.uid])players[user.uid]={...players[user.uid],comments:state.comments};save();render();}});
+document.addEventListener("input",e=>{const t=e.target;if(t.dataset&&t.dataset.cin)drafts[t.dataset.cin]=t.value;});
+document.addEventListener("submit",e=>{const f=e.target.closest("form[data-cform]");if(!f)return;e.preventDefault();if(!user)return;const g=f.dataset.cform;const txt=(drafts[g]||"").trim();if(!txt)return;
+  const c={id:rid(),text:txt.slice(0,280),at:new Date().toISOString()};state.comments={...(state.comments||{})};state.comments[g]=[...(state.comments[g]||[]),c];drafts[g]="";
+  if(players[user.uid])players[user.uid]={...players[user.uid],comments:state.comments};save();render();const i=$("cin-"+g);if(i)i.focus();});
 async function load(){
   try{const r=await fetch(DATA_URL+(DATA_URL.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/60000),{cache:"no-store"});
     if(!r.ok)throw new Error(r.status);board=await r.json();if(board.sourceUrl)$("src").href=board.sourceUrl;render();}
   catch(e){if(!board)$("updated").textContent="Couldn't load lines right now. Try refreshing the page.";}
 }
-load();setInterval(load,5*60*1000);
+load();setInterval(load,5*60*1000);initCloud();
 // tell a parent page our height so an iframe can size itself
 const ro=new ResizeObserver(()=>{try{parent.postMessage({fantalyticsLinesHeight:document.documentElement.scrollHeight},"*");}catch(_){}});ro.observe(document.body);
 })();
