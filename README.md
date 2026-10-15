@@ -15,3 +15,6 @@ The page posts `{fantalyticsLinesHeight: <px>}` to its parent whenever its heigh
 
 ## Sharing picks
 Tap prices to pick, add confidence, then use **Share link** in the picks tray. It copies a text card plus a link like `https://pittardj.github.io/bet-tracker/?p=...` (add `&n=YourName` to label it). Anyone opening the link sees those picks highlighted, with the price picked compared to the current consensus, and can save them or start their own. Add `&site=<url>` to the board's iframe src to make shared links point at your own page instead.
+
+## Bet Ledger (`/ledger`)
+A copy of the personal bet tracker at https://pittardj.github.io/bet-tracker/ledger/. On GitHub Pages it runs in single-browser mode: bets, picks and confidence are saved in that browser only (use Export CSV to back up), and it reads the same `lines.json` as the board. Account sync, two-player picks, comments and bet-history import need the Claude-hosted version.

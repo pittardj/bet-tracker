@@ -1,0 +1,686 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Bet Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ticket-stub header with the bankroll line, a P/L curve, then the ledger as a stack of slips */
+:root{
+  --bg:#EEF1EE; --panel:#FFFFFF; --ink:#14201B; --muted:#5B6A63; --line:#D5DDD8;
+  --accent:#1E6A4A; --accent-ink:#FFFFFF; --win:#1E7A4C; --loss:#B23A2F; --push:#A8741A; --pend:#3D5A80;
+  --win-bg:#E3F2E9; --loss-bg:#F8E5E2; --push-bg:#F6EDD9; --pend-bg:#E3EAF3;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1512; --panel:#16201C; --ink:#E4ECE7; --muted:#93A39B; --line:#2A3832;
+  --accent:#4FB386; --accent-ink:#0B130F; --win:#5BC48E; --loss:#EE7B6E; --push:#E0AE52; --pend:#8DB0DA;
+  --win-bg:#173326; --loss-bg:#3A1D1A; --push-bg:#352A14; --pend-bg:#1B2838; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1512; --panel:#16201C; --ink:#E4ECE7; --muted:#93A39B; --line:#2A3832;
+  --accent:#4FB386; --accent-ink:#0B130F; --win:#5BC48E; --loss:#EE7B6E; --push:#E0AE52; --pend:#8DB0DA;
+  --win-bg:#173326; --loss-bg:#3A1D1A; --push-bg:#352A14; --pend-bg:#1B2838; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1080px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:2.4rem;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1}
+.sub{color:var(--muted);font-size:.85rem;margin-top:4px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent}
+button:disabled{opacity:.5;cursor:default}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.stat{padding:14px 16px;border-right:1px dashed var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat:last-child{border-right:0}
+.lbl{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;color:var(--muted);font-weight:600}
+.val{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.35rem;font-weight:500}
+.pos{color:var(--win)} .neg{color:var(--loss)}
+.chartcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.chartcard .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+#chart{width:100%;height:180px;display:block;margin-top:8px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar select{font:inherit;padding:7px 10px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.toolbar .spacer{flex:1}
+.slips{display:flex;flex-direction:column;gap:8px}
+.slip{display:grid;grid-template-columns:6px 1fr auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.slip .stripe{background:var(--pend)}
+.slip[data-s="won"] .stripe{background:var(--win)} .slip[data-s="lost"] .stripe{background:var(--loss)}
+.slip[data-s="push"] .stripe,.slip[data-s="void"] .stripe{background:var(--push)}
+.slip .main{padding:10px 14px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.slip .event{font-weight:600;overflow-wrap:anywhere}
+.slip .pick{font-family:var(--display);font-size:1.15rem;font-weight:600;letter-spacing:.01em}
+.meta{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:.82rem}
+.slip .side{padding:10px 14px;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:6px;border-left:1px dashed var(--line);min-width:150px}
+.pill{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--pend-bg);color:var(--pend)}
+.pill.won{background:var(--win-bg);color:var(--win)} .pill.lost{background:var(--loss-bg);color:var(--loss)}
+.pill.push,.pill.void{background:var(--push-bg);color:var(--push)}
+.pill.ex{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.actions{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.actions button{padding:4px 8px;font-size:.8rem}
+.actions .w{color:var(--win)} .actions .l{color:var(--loss)} .actions .p{color:var(--push)}
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:28px 20px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.empty h2{font-family:var(--display);text-transform:uppercase;margin:0;font-size:1.5rem;letter-spacing:.03em}
+.empty p{margin:0;color:var(--muted);max-width:52ch}
+.note{font-size:.8rem;color:var(--muted)}
+.banner{background:var(--pend-bg);color:var(--ink);border-radius:8px;padding:8px 12px;font-size:.85rem;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+/* form sheet */
+.sheet{position:fixed;inset:0;background:rgba(10,16,13,.55);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;z-index:10;padding:max(24px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
+.sheet form{background:var(--panel);color:var(--ink);border-radius:12px;border:1px solid var(--line);width:100%;max-width:560px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.sheet h2{font-family:var(--display);text-transform:uppercase;margin:0;font-size:1.6rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid .full{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;min-width:0}
+label span{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-weight:600;color:var(--muted)}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;min-width:0}
+input.num{font-family:var(--mono)}
+textarea{font:inherit;font-family:var(--mono);font-size:.82rem;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;resize:vertical}
+.prow{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:.85rem}
+.prow input{width:auto}
+.prow .dup{color:var(--muted)}
+.boardcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.boardhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+.boardhead select{font:inherit;padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.games{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:10px}
+.game{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) repeat(3,minmax(58px,auto)) 52px;gap:4px 6px;align-items:center;min-width:0}
+.game .kick{grid-column:1/-1;font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.game .tm{font-weight:600;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game .colh{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:.68rem;color:var(--muted);text-align:center}
+.odd{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;padding:5px 4px;line-height:1.15;text-align:center;display:flex;flex-direction:column;align-items:center;border-radius:5px;background:var(--bg)}
+.odd:hover{border-color:var(--accent)}
+.odd small{font-size:.66rem;color:var(--muted)}
+.odd .bk{font-family:var(--body);font-size:.62rem;color:var(--accent)}
+.odd:disabled{opacity:.4}
+.odd.sel{background:var(--win-bg);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);color:var(--ink)}
+.odd.logged{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.odd.logged small,.odd.logged .bk{color:var(--accent-ink)}
+.conf{grid-column:5;grid-row:2/span 3;display:flex;flex-direction:column;align-items:center;gap:2px;border-left:1px dashed var(--line);padding-left:6px;align-self:stretch;justify-content:center}
+.conf input{width:44px;text-align:center;font-family:var(--mono);font-size:1rem;font-weight:500;padding:6px 2px}
+.conf input.set{border-color:var(--accent);background:var(--win-bg)}
+body.viewer .ownerOnly{display:none!important}
+.odd{position:relative}
+.who{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--pend);color:var(--panel);font-family:var(--body);font-size:.62rem;font-weight:700;line-height:16px;text-align:center}
+.h2h{border-top:1px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.h2hwrap{overflow-x:auto}
+.h2h table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:420px}
+.h2h th,.h2h td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.h2h th{font-family:var(--display);text-transform:uppercase;letter-spacing:.07em;font-size:.72rem;color:var(--muted);font-weight:600}
+.h2h td.agree{background:var(--win-bg)}
+.h2h .sub{color:var(--muted);font-size:.75rem}
+.cmt{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:6px;margin-top:2px}
+.cbtn{align-self:stretch;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--ink);font-size:.82rem;font-weight:600;cursor:pointer;text-align:left;display:flex;justify-content:space-between;gap:8px}
+.cbtn:hover{border-color:var(--accent)}
+.cbtn .ct{color:var(--accent)}
+.cbtn.has{background:var(--pend-bg)}
+.clist{display:flex;flex-direction:column;gap:6px}
+.cm{font-size:.85rem;background:var(--bg);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere}
+.cm .by{font-weight:600}
+.cm .ts{color:var(--muted);font-size:.72rem}
+.cm .del{background:transparent;border:0;color:var(--muted);font-size:.72rem;padding:0 0 0 6px;cursor:pointer}
+.cform{display:flex;gap:6px}
+.cform input{flex:1;min-width:0;padding:6px 8px;font-size:.85rem}
+.cform button{padding:6px 10px;font-size:.8rem}
+.tray{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:10px}
+.tray .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;justify-content:space-between;font-size:.88rem}
+.tray .row .num{font-size:.85rem}
+.tray .row .acts{display:flex;gap:4px}
+.tray .row button{padding:3px 9px;font-size:.8rem}
+.linechip{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.towin{font-family:var(--mono);font-size:.9rem;color:var(--muted)}
+.formfoot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.err{color:var(--loss);font-size:.85rem}
+@media (max-width:620px){
+  .slip{grid-template-columns:6px 1fr}
+  .slip .side{grid-column:2;border-left:0;border-top:1px dashed var(--line);flex-direction:row;align-items:center;min-width:0;flex-wrap:wrap}
+  .stat{border-right:0;border-bottom:1px dashed var(--line)}
+  .grid{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Bet Ledger</h1>
+      <div class="sub" id="saveNote">Loading your ledger…</div>
+    </div>
+    <div class="toolbar ownerOnly">
+      <button class="ghost" id="exportBtn" type="button" hidden>Export CSV</button>
+      <button id="importBtn" type="button">Import bets</button>
+      <button class="primary" id="addBtn" type="button">+ Log a bet</button>
+    </div>
+  </header>
+
+  <div id="exampleBanner" class="banner ownerOnly" hidden>
+    <span>Showing example bets. They are not saved. Log your first bet to start your own ledger.</span>
+    <button type="button" class="ghost" id="hideExamples">Clear examples</button>
+  </div>
+
+  <section class="board ownerOnly" aria-label="Summary">
+    <div class="stat"><span class="lbl">Net P/L</span><span class="val" id="sPL">$0.00</span></div>
+    <div class="stat"><span class="lbl">ROI</span><span class="val" id="sROI">0.0%</span></div>
+    <div class="stat"><span class="lbl">Record W-L-P</span><span class="val" id="sRec">0-0-0</span></div>
+    <div class="stat"><span class="lbl">Win rate</span><span class="val" id="sWR">–</span></div>
+    <div class="stat"><span class="lbl">Avg CLV</span><span class="val" id="sCLV">–</span></div>
+    <div class="stat"><span class="lbl">Open risk</span><span class="val" id="sOpen">$0.00</span></div>
+  </section>
+
+  <section class="boardcard" id="boardCard" hidden>
+    <div class="boardhead">
+      <div><span class="lbl" id="boardTitle">Lines</span><div class="note" id="boardNote"></div></div>
+      <div class="toolbar"><label for="boardBook" class="note">Prices from</label><select id="boardBook"></select><button type="button" class="ghost" id="boardToggle">Hide</button></div>
+    </div>
+    <div class="games" id="games"></div>
+    <div class="tray" id="tray" hidden></div>
+    <div class="h2h" id="h2h" hidden></div>
+    <div class="note">Tap a price to mark it as a pick. It stays highlighted until you tap it again. Letters on a price show who else picked it.<span class="ownerOnly"> Solid prices are bets you've logged.</span> Consensus and best prices come from the board; your book's actual price may differ.</div>
+  </section>
+
+  <div class="toolbar ownerOnly">
+    <select id="fSport" aria-label="Filter by sport"><option value="">All sports</option></select>
+    <select id="fStatus" aria-label="Filter by status">
+      <option value="">All statuses</option><option value="pending">Pending</option><option value="won">Won</option>
+      <option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option>
+    </select>
+    <select id="fBook" aria-label="Filter by book"><option value="">All books</option></select>
+    <span class="spacer"></span>
+    <span class="note" id="countNote"></span>
+  </div>
+
+  <section class="slips ownerOnly" id="slips"></section>
+
+  <section class="chartcard ownerOnly">
+    <div class="head"><span class="lbl">Cumulative profit, settled bets</span><span class="note num" id="chartNote"></span></div>
+    <svg id="chart" role="img" aria-label="Cumulative profit chart"></svg>
+  </section>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <form id="betForm" novalidate>
+    <h2 id="formTitle">Log a bet</h2>
+    <div class="grid">
+      <label><span>Date</span><input type="date" id="fDate" required></label>
+      <label><span>Sport</span><input id="fSportIn" list="sportList" placeholder="NFL" required></label>
+      <label class="full"><span>Event</span><input id="fEvent" placeholder="Chiefs @ Bills" required></label>
+      <label><span>Market</span>
+        <select id="fMarket"><option>Spread</option><option>Moneyline</option><option>Total</option><option>Prop</option><option>Parlay</option><option>Future</option><option>Contest</option></select></label>
+      <label><span>Pick</span><input id="fPick" placeholder="Bills -2.5" required></label>
+      <label><span>Odds (American)</span><input class="num" id="fOdds" inputmode="numeric" placeholder="-110" required></label>
+      <label><span>Stake ($)</span><input class="num" id="fStake" inputmode="decimal" placeholder="100" required></label>
+      <label><span>Book</span><input id="fBookIn" list="bookList" placeholder="DraftKings"></label>
+      <label><span>Closing odds</span><input class="num" id="fClose" inputmode="numeric" placeholder="optional, for CLV"></label>
+      <label id="payoutWrap" hidden><span>Winnings ($)</span><input class="num" id="fPayout" inputmode="decimal" placeholder="0"></label>
+      <label><span>Status</span>
+        <select id="fStat"><option value="pending">Pending</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option></select></label>
+      <label class="full"><span>Notes</span><input id="fNotes" placeholder="Model edge, reasoning, etc."></label>
+    </div>
+    <div class="towin" id="toWin">To win: –</div>
+    <div class="err" id="formErr" hidden></div>
+    <div class="formfoot">
+      <button type="button" class="ghost" id="delBtn" hidden>Delete bet</button>
+      <span style="flex:1"></span>
+      <button type="button" id="cancelBtn">Cancel</button>
+      <button type="submit" class="primary" id="saveBtn">Save bet</button>
+    </div>
+  </form>
+</div>
+<div class="sheet" id="impSheet" hidden>
+  <form id="impForm" novalidate>
+    <h2>Import bets</h2>
+    <p class="note" style="margin:0">Open your sportsbook's bet history (My Bets, Settled, Open), select all, copy and paste it here. A CSV export from a book, Pikkit or a spreadsheet works too. Bets already in your ledger are skipped.</p>
+    <label><span>Bet history</span><textarea id="impText" rows="8" placeholder="Paste copied bet history or CSV rows"></textarea></label>
+    <div class="toolbar"><label style="flex-direction:row;align-items:center;gap:8px"><span>Or a file</span><input type="file" id="impFile" accept=".csv,.txt,.tsv,text/csv,text/plain" style="width:auto"></label></div>
+    <label><span>Book (if the text doesn't say)</span><input id="impBook" list="bookList" placeholder="DraftKings"></label>
+    <div class="err" id="impErr" hidden></div>
+    <div id="impPreview" class="slips" hidden></div>
+    <div class="formfoot">
+      <span class="note" id="impStatus"></span>
+      <span style="flex:1"></span>
+      <button type="button" id="impCancel">Cancel</button>
+      <button type="button" id="impParse">Read bets</button>
+      <button type="submit" class="primary" id="impSave" hidden>Import</button>
+    </div>
+  </form>
+</div>
+<script type="application/json" id="boardSnap">{"league":"NFL","label":"NFL Week 7","source":"VegasInsider","sourceUrl":"https://www.vegasinsider.com/nfl/odds/las-vegas/","updatedAt":"2026-10-14T19:45:00-05:00","fields":"[awaySpread, awaySpreadPrice, homeSpreadPrice, total, overPrice, underPrice, awayML, homeML]","books":["Consensus","Open","DraftKings","FanDuel","BetMGM","Caesars","Bet365","Fanatics","Hard Rock","Rivers"],"games":[{"id":"sea-den","kick":"2026-10-15T19:15:00-05:00","away":"Seattle Seahawks","home":"Denver Broncos","a":"SEA","h":"DEN","b":{"Open":[-2.5,-105,-115,43.5,-110,-110,-130,110],"Bet365":[-2.5,-111,-109,40.5,-113,-107,-142,121],"BetMGM":[-2.5,-108,-110,40.5,-110,-108,-145,120],"DraftKings":[-2.5,-112,-108,40.5,-112,-108,-142,120],"Caesars":[-2.5,-115,-105,40.5,-111,-111,-145,123],"FanDuel":[-2.5,-115,-105,40.5,-115,-105,-146,124],"Hard Rock":[-2.5,-115,-105,40.5,-115,-105,-140,120],"Fanatics":[-2.5,-115,-105,40.5,-115,-105,-145,120],"Rivers":[-2.5,-113,-108,40.5,-108,-113,-150,125],"Consensus":[-2.5,-112,-108,40.5,-112,-108,-142,120]}},{"id":"hou-jac","kick":"2026-10-18T08:30:00-05:00","away":"Houston Texans","home":"Jacksonville Jaguars","a":"HOU","h":"JAC","b":{"Open":[-1.5,-102,-118,41.5,-110,-110,-115,-105],"Bet365":[2.5,-107,-113,42.5,-110,-110,122,-144],"BetMGM":[2.5,-105,-112,42.5,-108,-110,120,-145],"DraftKings":[2.5,-105,-115,42.5,-112,-108,120,-142],"Caesars":[2.5,-105,-115,42.5,-110,-110,125,-148],"FanDuel":[2.5,-110,-110,42.5,-110,-110,114,-134],"Hard Rock":[2.5,100,-120,42.5,-115,-105,125,-145],"Fanatics":[2.5,-105,-115,42.5,-110,-110,120,-145],"Rivers":[2.5,-107,-114,42.5,-112,-108,125,-150],"Consensus":[2.5,-105,-115,42.5,-112,-108,120,-142]}},{"id":"nyj-ne","kick":"2026-10-18T12:00:00-05:00","away":"New York Jets","home":"New England Patriots","a":"NYJ","h":"NE","b":{"Open":[9.5,-110,-110,42.5,-110,-110,350,-455],"Bet365":[7.5,-117,-103,43.5,-111,-109,275,-350],"BetMGM":[7,-105,-112,43.5,-108,-110,270,-325],"DraftKings":[7.5,-115,-105,43.5,-112,-108,270,-340],"Caesars":[7,-108,-110,43.5,-110,-110,275,-345],"FanDuel":[7.5,-120,-102,43.5,-115,-105,270,-335],"Hard Rock":[7,-105,-115,43.5,-110,-110,275,-350],"Fanatics":[7,-105,-115,43.5,-110,-110,265,-340],"Rivers":[7,-106,-115,43.5,-113,-108,275,-360],"Consensus":[7.5,-115,-105,43.5,-112,-108,270,-340]}},{"id":"pit-tb","kick":"2026-10-18T12:00:00-05:00","away":"Pittsburgh Steelers","home":"Tampa Bay Buccaneers","a":"PIT","h":"TB","b":{"Open":[1.5,-110,-110,45.5,-110,-110,105,-125],"Bet365":[-2.5,-113,-107,39.5,-109,-111,-139,119],"BetMGM":[-2.5,-115,-105,39.5,-108,-110,-145,120],"DraftKings":[-2.5,-112,-108,39.5,-115,-105,-142,120],"Caesars":[-2.5,-115,-105,39.5,-112,-108,-139,118],"FanDuel":[-2.5,-115,-105,39.5,-105,-115,-142,120],"Hard Rock":[-2.5,-115,-105,39.5,-110,-110,-140,120],"Fanatics":[-2.5,-115,-105,39.5,-105,-115,-145,120],"Rivers":[-2.5,-108,-110,39.5,-113,-108,-137,112],"Consensus":[-2.5,-112,-108,39.5,-115,-105,-142,120]}},{"id":"bal-cle","kick":"2026-10-18T12:00:00-05:00","away":"Baltimore Ravens","home":"Cleveland Browns","a":"BAL","h":"CLE","b":{"Open":[-6.5,-110,-110,44.5,-110,-110,-270,220],"Bet365":[-5.5,-105,-115,42.5,-115,-105,-245,200],"BetMGM":[-5,-108,-110,42.5,-110,-108,-235,200],"DraftKings":[-5.5,-105,-115,42.5,-118,-102,-258,210],"Caesars":[-5,-110,-109,42.5,-115,-105,-245,200],"FanDuel":[-5.5,-105,-115,42.5,-115,-105,-230,190],"Hard Rock":[-5.5,-110,-110,42.5,-115,-105,-250,200],"Fanatics":[-5,-110,-110,42.5,-115,-105,-245,200],"Rivers":[-5,-113,-108,42,-109,-110,-250,205],"Consensus":[-5.5,-105,-115,42.5,-118,-102,-258,210]}},{"id":"chi-atl","kick":"2026-10-18T12:00:00-05:00","away":"Chicago Bears","home":"Atlanta Falcons","a":"CHI","h":"ATL","b":{"Open":[-3,-115,-105,47.5,-110,-110,-166,140],"Bet365":[-1.5,-107,-113,51.5,-105,-115,-120,100],"BetMGM":[-1,-108,-110,51,-110,-108,-118,-102],"DraftKings":[-1.5,-102,-118,51.5,-102,-118,-115,-105],"Caesars":[-1.5,-108,-112,51,-109,-110,-117,-102],"FanDuel":[-1.5,-110,-110,50.5,-115,-105,-126,108],"Hard Rock":[-1.5,-110,-110,51,-110,-110,-120,100],"Fanatics":[-1,-110,-110,51,-110,-110,-115,-105],"Rivers":[-1.5,-115,-106,50.5,-112,-109,-122,102],"Consensus":[-1.5,-102,-118,51.5,-102,-118,-115,-105]}},{"id":"ten-ind","kick":"2026-10-18T12:00:00-05:00","away":"Tennessee Titans","home":"Indianapolis Colts","a":"TEN","h":"IND","b":{"Open":[3.5,-110,-110,48.5,-110,-110,160,-192],"Bet365":[6.5,100,-120,43.5,-116,-104,270,-340],"BetMGM":[7,-115,-105,44,-108,-110,270,-325],"DraftKings":[7,-115,-105,43.5,-118,-102,270,-340],"Caesars":[7,-114,-106,44,-110,-110,260,-325],"FanDuel":[6.5,-102,-120,43.5,-115,-105,265,-330],"Hard Rock":[7,-110,-110,44.5,-105,-115,260,-325],"Fanatics":[7,-115,-105,44,-110,-110,260,-330],"Rivers":[7,-115,-108,44.5,-108,-113,255,-335],"Consensus":[7,-115,-105,43.5,-118,-102,270,-340]}},{"id":"car-phi","kick":"2026-10-18T12:00:00-05:00","away":"Carolina Panthers","home":"Philadelphia Eagles","a":"CAR","h":"PHI","b":{"Open":[6.5,-110,-110,43.5,-110,-110,230,-285],"Bet365":[-1.5,-104,-116,39.5,-115,-105,-116,-104],"BetMGM":[-1,-108,-110,39.5,-110,-108,-115,-102],"DraftKings":[-1.5,-102,-118,39.5,-115,-105,-115,-105],"Caesars":[-1.5,-105,-114,39.5,-115,-105,-115,-103],"FanDuel":[-1.5,-106,-114,39.5,-115,-105,-116,-102],"Hard Rock":[-1,-110,-110,39.5,-115,-105,-115,-105],"Fanatics":[0.5,-115,-105,40,-110,-110,-115,-105],"Rivers":[0.5,-109,-112,40.5,-112,-108,-109,-112],"Consensus":[-1.5,-102,-118,39.5,-115,-105,-115,-105]}},{"id":"no-nyg","kick":"2026-10-18T12:00:00-05:00","away":"New Orleans Saints","home":"New York Giants","a":"NO","h":"NYG","b":{"Open":[2.5,-105,-115,45.5,-110,-110,124,-148],"Bet365":[-1.5,-103,-117,45.5,-111,-109,-116,-104],"BetMGM":[-1,-108,-110,45.5,-110,-108,-115,-102],"DraftKings":[-1.5,100,-120,45.5,-112,-108,-115,-105],"Caesars":[-1.5,102,-122,45.5,-110,-110,-113,-105],"FanDuel":[-1.5,-100,-122,45.5,-110,-110,-112,-104],"Hard Rock":[-1,-110,-110,45.5,-110,-110,-115,-105],"Fanatics":[0.5,-115,-105,46,-110,-110,-115,-105],"Rivers":[-0.5,-109,-112,45.5,-109,-112,-112,-108],"Consensus":[-1.5,100,-120,45.5,-112,-108,-115,-105]}},{"id":"ari-la","kick":"2026-10-18T15:05:00-05:00","away":"Arizona Cardinals","home":"Los Angeles Rams","a":"ARI","h":"LA","b":{"Open":[13.5,-110,-110,47.5,-110,-110,500,-700],"Bet365":[12.5,-109,-111,51.5,-115,-105,600,-900],"BetMGM":[12.5,-108,-110,52,-110,-110,550,-750],"DraftKings":[12.5,-105,-115,51.5,-115,-105,600,-900],"Caesars":[12.5,-107,-113,51.5,-114,-106,600,-950],"FanDuel":[12.5,-106,-114,51.5,-115,-105,590,-850],"Hard Rock":[13,-110,-110,52,-110,-110,600,-950],"Fanatics":[12,-110,-110,52,-110,-110,575,-850],"Rivers":[12.5,-108,-113,52,-109,-110,510,-770],"Consensus":[12.5,-105,-115,51.5,-115,-105,600,-900]}},{"id":"buf-lv","kick":"2026-10-18T15:25:00-05:00","away":"Buffalo Bills","home":"Las Vegas Raiders","a":"BUF","h":"LV","b":{"Open":[-6.5,-110,-110,47.5,-110,-110,-285,230],"Bet365":[-5.5,-105,-115,53.5,-109,-111,-240,195],"BetMGM":[-4.5,-110,-108,53,-110,-108,-235,195],"DraftKings":[-5.5,-105,-115,53.5,-110,-110,-258,210],"Caesars":[-4.5,-114,-106,53.5,-107,-113,-240,195],"FanDuel":[-5.5,-105,-115,53.5,-110,-110,-245,200],"Hard Rock":[-5,-110,-110,53.5,-110,-110,-240,195],"Fanatics":[-4.5,-110,-110,53.5,-110,-110,-235,190],"Rivers":[-5.5,-108,-113,52.5,-112,-109,-250,205],"Consensus":[-5.5,-105,-115,53.5,-110,-110,-258,210]}},{"id":"lac-kc","kick":"2026-10-18T15:25:00-05:00","away":"Los Angeles Chargers","home":"Kansas City Chiefs","a":"LAC","h":"KC","b":{"Open":[2.5,-110,-110,46.5,-110,-110,114,-135],"Bet365":[8.5,-117,-103,42.5,-108,-112,355,-460],"BetMGM":[8,-108,-110,42.5,-108,-110,340,-450],"DraftKings":[8.5,-115,-105,42.5,-108,-112,370,-485],"Caesars":[8.5,-115,-104,42.5,-113,-107,340,-440],"FanDuel":[8.5,-120,-102,42.5,-108,-112,340,-430],"Hard Rock":[8,-110,-110,42.5,-115,-105,325,-475],"Fanatics":[8,-110,-110,42,-110,-110,325,-425],"Rivers":[8,-108,-113,42.5,-108,-112,335,-455],"Consensus":[8.5,-115,-105,42.5,-108,-112,370,-485]}},{"id":"dal-gb","kick":"2026-10-18T19:20:00-05:00","away":"Dallas Cowboys","home":"Green Bay Packers","a":"DAL","h":"GB","b":{"Open":[3,-110,-110,51.5,-110,-110,140,-166],"Bet365":[1.5,-112,-108,52.5,-112,-108,100,-120],"BetMGM":[1.5,-110,-108,53,-110,-108,100,-120],"DraftKings":[1.5,-115,-105,53.5,-105,-115,102,-122],"Caesars":[1.5,-117,-104,53.5,-107,-113,101,-118],"FanDuel":[1.5,-114,-106,52.5,-112,-108,-102,-116],"Hard Rock":[1.5,-115,-105,53,-110,-110,100,-120],"Fanatics":[1.5,-110,-110,53,-110,-110,105,-125],"Rivers":[1,-112,-108,53,-108,-113,-104,-115],"Consensus":[1.5,-115,-105,53.5,-105,-115,102,-122]}},{"id":"was-sf","kick":"2026-10-19T19:15:00-05:00","away":"Washington Commanders","home":"San Francisco 49ers","a":"WAS","h":"SF","b":{"Open":[5.5,-110,-110,50.5,-110,-110,205,-250],"Bet365":[7.5,-111,-109,50.5,-113,-107,330,-420],"BetMGM":[7.5,-110,-108,50.5,-112,-105,310,-400],"DraftKings":[7.5,-112,-108,50.5,-120,100,330,-425],"Caesars":[7.5,-110,-109,50.5,-112,-108,320,-420],"FanDuel":[7.5,-112,-108,50.5,-110,-110,330,-420],"Hard Rock":[7.5,-110,-110,50.5,-110,-110,325,-425],"Fanatics":[7.5,-110,-110,50.5,-110,-110,310,-400],"Rivers":[7.5,-108,-112,50.5,-107,-113,325,-455],"Consensus":[7.5,-112,-108,50.5,-120,100,330,-425]}}]}</script>
+<datalist id="sportList"><option>NFL</option><option>CFB</option><option>NBA</option><option>NCAAB</option><option>MLB</option><option>NHL</option><option>Soccer</option><option>Tennis</option><option>Golf</option></datalist>
+<datalist id="bookList"></datalist>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const LS_KEY="bet-ledger-v1";
+let bets=[];           // user's bets
+let showingExamples=false;
+let store=null;        // {save(bet), remove(id)}
+let editingId=null, confirmDel=false, readOnly=false;
+
+/* ---------- math ---------- */
+function profitOn(odds,stake){odds=+odds;stake=+stake;if(!odds||!stake)return 0;return odds>0?stake*odds/100:stake*100/Math.abs(odds);}
+function dec(odds){odds=+odds;return odds>0?1+odds/100:1+100/Math.abs(odds);}
+const isC=b=>b.market==="Contest";
+function result(b){if(isC(b))return (b.status==="pending"||b.status==="void")?0:(+b.payout||0)-(+b.stake);if(b.status==="won")return profitOn(b.odds,b.stake);if(b.status==="lost")return -b.stake;return 0;}
+function clv(b){if(!b.close||!b.odds)return null;return dec(b.odds)/dec(b.close)-1;}
+const money=v=>(v<0?"-":"")+"$"+Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const signed=v=>(v>0?"+":"")+money(v);
+const pct=v=>(v>0?"+":"")+(v*100).toFixed(1)+"%";
+const oddsStr=o=>(+o>0?"+":"")+o;
+
+/* ---------- examples (shown only on an empty ledger, never saved) ---------- */
+const EX=[
+ {date:"2026-09-07",sport:"NFL",event:"Steelers @ Jets",market:"Spread",pick:"Steelers -2.5",odds:-110,stake:110,book:"DraftKings",close:-125,status:"won"},
+ {date:"2026-09-13",sport:"CFB",event:"Alabama vs Wisconsin",market:"Total",pick:"Under 47.5",odds:-108,stake:108,book:"FanDuel",close:-112,status:"lost"},
+ {date:"2026-09-20",sport:"CFB",event:"Auburn @ Oklahoma",market:"Moneyline",pick:"Auburn ML",odds:165,stake:50,book:"Caesars",close:150,status:"won"},
+ {date:"2026-09-28",sport:"NFL",event:"Bears @ Raiders",market:"Spread",pick:"Bears +3",odds:-115,stake:115,book:"BetMGM",close:-120,status:"push"},
+ {date:"2026-10-05",sport:"NFL",event:"Lions @ Bengals",market:"Spread",pick:"Lions -3",odds:-105,stake:105,book:"DraftKings",close:-110,status:"lost"},
+ {date:"2026-10-11",sport:"CFB",event:"Ole Miss @ Georgia",market:"Spread",pick:"Ole Miss +7.5",odds:-110,stake:110,book:"FanDuel",close:-118,status:"won"},
+ {date:"2026-10-18",sport:"NFL",event:"Packers @ Cowboys",market:"Total",pick:"Over 49.5",odds:-110,stake:110,book:"DraftKings",close:null,status:"pending"}
+].map((b,i)=>({...b,id:"ex"+i,created:i,example:true}));
+
+function current(){return showingExamples?EX:bets;}
+
+/* ---------- render ---------- */
+function render(){
+  renderBoard();
+  const all=current();
+  $("exampleBanner").hidden=!showingExamples;
+  $("exportBtn").hidden=showingExamples||!bets.length;
+  fillFilter("fSport",all.map(b=>b.sport),"All sports");
+  fillFilter("fBook",all.map(b=>b.book),"All books");
+  $("bookList").innerHTML=[...new Set(bets.map(b=>b.book).filter(Boolean))].map(b=>`<option>${esc(b)}</option>`).join("");
+  const fs=$("fSport").value,fst=$("fStatus").value,fb=$("fBook").value;
+  const list=all.filter(b=>(!fs||b.sport===fs)&&(!fst||b.status===fst)&&(!fb||b.book===fb))
+               .sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.created||0)-(a.created||0));
+  summary(list); chart(list);
+  $("countNote").textContent=list.length+(list.length===1?" bet":" bets");
+  const box=$("slips");
+  if(!all.length){
+    box.innerHTML=`<div class="empty"><h2>No bets logged yet</h2><p>Log each wager with its odds and stake. Settle it as won, lost or push, and add the closing line to track CLV. Your profit, ROI and record update as you go.</p><div class="toolbar" style="justify-content:center"><button class="primary" type="button" data-act="add">+ Log your first bet</button><button type="button" data-act="examples">See it with example bets</button></div></div>`;
+    return;
+  }
+  if(!list.length){box.innerHTML=`<div class="empty"><p>No bets match these filters.</p></div>`;return;}
+  box.innerHTML=list.map(slip).join("");
+}
+function slip(b){
+  const r=result(b),c=clv(b);
+  const right=isC(b)
+    ? (b.status==="pending"?`<span class="num">${money(+b.stake)} entry${b.payout?` · won ${money(+b.payout)}`:""}</span>`:`<span class="num ${r>0?"pos":r<0?"neg":""}" style="font-size:1.1rem">${signed(r)}</span>`)
+    : b.status==="pending"
+    ? `<span class="num">${money(+b.stake)} to win ${money(profitOn(b.odds,b.stake))}</span>`
+    : `<span class="num ${r>0?"pos":r<0?"neg":""}" style="font-size:1.1rem">${b.status==="push"||b.status==="void"?"$0.00":signed(r)}</span>`;
+  const settle=(!b.example&&!readOnly&&b.status==="pending"&&!isC(b))?`<button type="button" class="w" data-act="won" data-id="${b.id}">Won</button><button type="button" class="l" data-act="lost" data-id="${b.id}">Lost</button><button type="button" class="p" data-act="push" data-id="${b.id}">Push</button>`:"";
+  const edit=(!b.example&&!readOnly)?`<button type="button" class="ghost" data-act="edit" data-id="${b.id}">Edit</button>`:"";
+  return `<article class="slip" data-s="${b.status}"><div class="stripe"></div>
+   <div class="main"><div class="meta">${b.conf!=null?`<span class="pill">Conf ${esc(b.conf)}</span>`:""}<span>${esc(b.date||"")}</span><span>${esc(b.sport||"")}</span><span>${esc(b.market||"")}</span>${b.book?`<span>${esc(b.book)}</span>`:""}</div>
+    <div class="event">${esc(b.event||"")}</div>
+    <div class="pick">${esc(b.pick||"")} ${b.odds?`<span class="num" style="font-size:.95rem;font-weight:400">${oddsStr(b.odds)}</span>`:""}</div>${b.standing?`<div class="linechip">${esc(b.standing)}${b.standingAt?` · updated ${esc(fmtAt(b.standingAt))}`:""}</div>`:""}
+    ${(()=>{if(b.status!=="pending"||isC(b))return"";const L=liveLine(b);if(!L)return"";const v=L.price?dec(b.odds)/dec(L.price)-1:null;
+      return `<div class="linechip">Consensus now ${esc(L.txt)}${v!==null?` · <span class="${v>0?"pos":v<0?"neg":""}">live CLV ${pct(v)}</span>`:" · line moved"}${L.at?` · ${esc(fmtAt(L.at))}`:""}</div>`;})()}
+    ${(c!==null||b.notes)?`<div class="meta">${c!==null?`<span class="num ${c>0?"pos":c<0?"neg":""}">CLV ${pct(c)} (close ${oddsStr(b.close)})</span>`:""}${b.notes?`<span>${esc(b.notes)}</span>`:""}</div>`:""}
+   </div>
+   <div class="side"><span class="pill ${b.example?"ex":b.status}">${b.example?"Example · ":""}${b.status}</span>${right}<div class="actions">${settle}${edit}</div></div></article>`;
+}
+function summary(list){
+  const settled=list.filter(b=>["won","lost","push"].includes(b.status));
+  const pl=settled.reduce((s,b)=>s+result(b),0);
+  const risked=settled.filter(b=>b.status!=="push").reduce((s,b)=>s+(+b.stake),0);
+  const sb=settled.filter(b=>!isC(b));const w=sb.filter(b=>b.status==="won").length,l=sb.filter(b=>b.status==="lost").length,p=sb.filter(b=>b.status==="push").length;
+  const cl=list.map(clv).filter(v=>v!==null);
+  const open=list.filter(b=>b.status==="pending").reduce((s,b)=>s+(+b.stake),0);
+  set("sPL",signed(pl),pl); set("sROI",risked?pct(pl/risked):"0.0%",pl);
+  $("sRec").textContent=`${w}-${l}-${p}`;
+  $("sWR").textContent=(w+l)?((w/(w+l))*100).toFixed(1)+"%":"–";
+  const avg=cl.length?cl.reduce((a,b)=>a+b,0)/cl.length:null;
+  set("sCLV",avg===null?"–":pct(avg),avg||0);
+  $("sOpen").textContent=money(open);
+}
+function set(id,t,v){const e=$(id);e.textContent=t;e.className="val "+(v>0?"pos":v<0?"neg":"");}
+function chart(list){
+  const svg=$("chart"),W=svg.clientWidth||600,H=180,P={l:56,r:12,t:10,b:22};
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const pts=list.filter(b=>["won","lost","push"].includes(b.status)).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.created||0)-(b.created||0));
+  if(!pts.length){svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)" font-size="13" font-family="var(--body)">Settle a bet to start the curve</text>`;$("chartNote").textContent="";return;}
+  let run=0;const ys=[0,...pts.map(b=>run+=result(b))];
+  let mn=Math.min(0,...ys),mx=Math.max(0,...ys);if(mn===mx){mx+=1;mn-=1;}
+  const pad=(mx-mn)*.08;mn-=pad;mx+=pad;
+  const x=i=>P.l+(W-P.l-P.r)*(i/(ys.length-1));
+  const y=v=>P.t+(H-P.t-P.b)*(1-(v-mn)/(mx-mn));
+  const line=ys.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const area=line+`L${x(ys.length-1).toFixed(1)},${y(0).toFixed(1)}L${x(0).toFixed(1)},${y(0).toFixed(1)}Z`;
+  const end=ys[ys.length-1],col=end>=0?"var(--win)":"var(--loss)";
+  const ticks=[mn+pad,0,mx-pad].filter((v,i,a)=>a.findIndex(z=>Math.abs(z-v)<(mx-mn)*.12)===i);
+  svg.innerHTML=ticks.map(t=>`<line x1="${P.l}" x2="${W-P.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" ${t===0?"":'stroke-dasharray="3 4"'}/><text x="${P.l-6}" y="${y(t)+4}" text-anchor="end" fill="var(--muted)" font-size="11" font-family="var(--mono)">${t<0?"-":""}$${Math.abs(Math.round(t))}</text>`).join("")
+   +`<path d="${area}" fill="${col}" fill-opacity=".12"/><path d="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`
+   +`<circle cx="${x(ys.length-1)}" cy="${y(end)}" r="4" fill="${col}"/>`
+   +`<text x="${P.l}" y="${H-5}" fill="var(--muted)" font-size="11" font-family="var(--mono)">${esc(pts[0].date||"")}</text><text x="${W-P.r}" y="${H-5}" text-anchor="end" fill="var(--muted)" font-size="11" font-family="var(--mono)">${esc(pts[pts.length-1].date||"")}</text>`;
+  $("chartNote").textContent=pts.length+" settled";
+}
+function fillFilter(id,vals,label){const s=$(id),cur=s.value;const u=[...new Set(vals.filter(Boolean))].sort();
+  s.innerHTML=`<option value="">${label}</option>`+u.map(v=>`<option${v===cur?" selected":""}>${esc(v)}</option>`).join("");}
+/* ---------- lines board ---------- */
+let board=null,boardHidden=false;
+const SIDES={sa:"Spread",sh:"Spread",o:"Total",u:"Total",ma:"Moneyline",mh:"Moneyline"};
+const fmtLine=v=>v===0?"PK":(v>0?"+":"")+v;
+function sideVal(arr,k){if(!arr)return null;const [as,ap,hp,t,op,up,ma,mh]=arr;
+  if(k==="sa")return as==null||ap==null?null:{line:as,price:ap};if(k==="sh")return as==null||hp==null?null:{line:-as,price:hp};
+  if(k==="o")return t==null||op==null?null:{line:t,price:op};if(k==="u")return t==null||up==null?null:{line:t,price:up};
+  if(k==="ma")return ma==null?null:{price:ma};if(k==="mh")return mh==null?null:{price:mh};return null;}
+function better(k,x,y){ // is x better for the bettor than y
+  if(!y)return true;if(k==="sa"||k==="sh"){if(x.line!==y.line)return x.line>y.line;}
+  else if(k==="o"){if(x.line!==y.line)return x.line<y.line;}else if(k==="u"){if(x.line!==y.line)return x.line>y.line;}
+  return dec(x.price)>dec(y.price);}
+function quote(g,k,book){if(book==="Best"){let best=null,bk=null;for(const n of board.books){if(n==="Open"||n==="Consensus")continue;const v=sideVal(g.b[n],k);if(v&&better(k,v,best)){best=v;bk=n;}}return best?{...best,book:bk}:null;}
+  const v=sideVal(g.b[book],k);return v?{...v,book}:null;}
+function pickText(g,k,q){if(k==="sa")return `${g.away.split(" ").pop()} ${fmtLine(q.line)}`;if(k==="sh")return `${g.home.split(" ").pop()} ${fmtLine(q.line)}`;
+  if(k==="o")return `Over ${q.line}`;if(k==="u")return `Under ${q.line}`;if(k==="ma")return `${g.away.split(" ").pop()} ML`;return `${g.home.split(" ").pop()} ML`;}
+function liveLine(b){if(!board||!b.gameId||!b.side)return null;const g=board.games.find(x=>x.id===b.gameId);if(!g)return null;const q=quote(g,b.side,"Consensus");if(!q)return null;
+  const same=q.line===undefined||q.line===b.lineNum;return{txt:(q.line!==undefined?fmtLine(q.line)+" ":"")+oddsStr(q.price),price:same?q.price:null,at:board.updatedAt};}
+function renderBoard(){
+  const card=$("boardCard");if(!board||!board.games||!board.games.length){card.hidden=true;return;}card.hidden=false;
+  $("boardTitle").textContent=board.label||"Lines";
+  $("boardNote").textContent=`${board.source||""} · updated ${fmtAt(board.updatedAt)}`;
+  const sel=$("boardBook");if(!sel.options.length){sel.innerHTML=["Consensus","Best"].concat(board.books.filter(n=>n!=="Consensus")).map(n=>`<option value="${esc(n)}">${n==="Best"?"Best price":esc(n)}</option>`).join("");
+    try{const v=localStorage.getItem("bet-ledger-book");if(v&&[...sel.options].some(o=>o.value===v))sel.value=v;}catch(_){}}
+  $("games").hidden=boardHidden;$("boardToggle").textContent=boardHidden?"Show":"Hide";
+  if(boardHidden)return;
+  const book=sel.value,now=Date.now();const logged=loggedSides(),selected=new Set(picks.map(p=>p.id));renderTray();
+  const fa=document.activeElement,fid=fa&&fa.dataset&&(fa.dataset.conf||fa.dataset.cin)?fa.id:null,fv=fid?fa.value:null,fs=fid?fa.selectionStart:null;
+  $("games").innerHTML=board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3).map(g=>{
+    const cell=k=>{const q=quote(g,k,book);if(!q)return `<button type="button" class="odd" disabled>–</button>`;
+      const top=k==="o"?`o${q.line}`:k==="u"?`u${q.line}`:(q.line!==undefined?fmtLine(q.line):oddsStr(q.price));
+      const sub=q.line!==undefined?oddsStr(q.price):"";
+      const pid=pickId(g.id,k);const cls=logged.has(pid)?" logged":(selected.has(pid)?" sel":"");
+      const who=others().filter(([,d])=>(d.picks||[]).some(p=>p.id===pid)).map(([id])=>initial(id)).join("");
+      return `<button type="button" class="odd${cls}" aria-pressed="${cls?"true":"false"}" data-act="pickline" data-g="${g.id}" data-k="${k}" title="${esc(pickText(g,k,q))} ${oddsStr(q.price)} · ${esc(q.book)}">${top}${sub?`<small>${sub}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}${who?`<span class="who" title="Also picked by ${esc(others().filter(([,d])=>(d.picks||[]).some(p=>p.id===pid)).map(([id])=>nameOf(id)).join(", "))}">${esc(who)}</span>`:""}</button>`;};
+    const d=new Date(g.kick);
+    return `<div class="game"><div class="kick"><span>${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span></div>
+      <span></span><span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
+      <label class="conf"><span class="colh">Conf</span><input id="conf-${g.id}" class="${confs[g.id]!=null?"set":""}" inputmode="numeric" maxlength="3" placeholder="–" value="${confs[g.id]!=null?esc(confs[g.id]):""}" data-conf="${g.id}" aria-label="Confidence for ${esc(g.away)} at ${esc(g.home)}, 1 to 10"></label>
+      <span class="tm" title="${esc(g.away)}">${esc(g.a)} <span class="note">${esc(g.away.split(" ").pop())}</span></span>${cell("sa")}${cell("o")}${cell("ma")}
+      <span class="tm" title="${esc(g.home)}">@ ${esc(g.h)} <span class="note">${esc(g.home.split(" ").pop())}</span></span>${cell("sh")}${cell("u")}${cell("mh")}
+      ${commentRow(g)}</div>`;}).join("")||`<p class="note">No upcoming games on this board.</p>`;
+  if(fid){const el=$(fid);if(el){el.value=fv;el.focus();try{el.setSelectionRange(fs,fs);}catch(_){}}}
+  renderH2H(board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3));
+}
+function openFromPick(p){const g=board.games.find(x=>x.id===p.gameId);if(!g)return;openForm(null);
+  pendingBoard={gameId:g.id,side:p.side,lineNum:p.line};$("fDate").value=g.kick.slice(0,10);$("fSportIn").value=board.league||"NFL";
+  $("fEvent").value=p.event;$("fMarket").value=SIDES[p.side];$("fPick").value=p.text;$("fOdds").value=p.price;
+  if(confs[p.gameId]!=null)pendingBoard.conf=confs[p.gameId];
+  if(p.book!=="Consensus"&&p.book!=="Open")$("fBookIn").value=p.book;updMarket();$("fStake").focus();}
+function openFromBoard(gid,k){const g=board.games.find(x=>x.id===gid);if(!g)return;const book=$("boardBook").value;const q=quote(g,k,book);if(!q)return;
+  openForm(null);pendingBoard={gameId:g.id,side:k,lineNum:q.line===undefined?null:q.line};
+  $("fDate").value=g.kick.slice(0,10);$("fSportIn").value=board.league||"NFL";$("fEvent").value=`${g.away} @ ${g.home}`;
+  $("fMarket").value=SIDES[k];$("fPick").value=pickText(g,k,q);$("fOdds").value=q.price;
+  if(q.book!=="Consensus"&&q.book!=="Open")$("fBookIn").value=q.book;updMarket();$("fStake").focus();}
+let viewer=false;let pendingBoard=null;let picks=[];let pickCol=null;let confs={};let confCol=null;const confTimers={};
+let myComments={},openCm=new Set(),drafts={};
+let myId=null,playerRef=null,players={},names={},userApi=null,dirty=0,saveTimer=null,saving=Promise.resolve();
+function persistMine(){ // one document per player: players/<id> = {picks, conf}
+  if(!playerRef){savePicksLocal();try{localStorage.setItem("bet-ledger-conf",JSON.stringify(confs));}catch(_){}return;}
+  dirty++;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{const body={picks,conf:confs,comments:myComments,at:new Date().toISOString()};
+    saving=saving.then(()=>playerRef.set(body)).catch(e=>{if(e&&e.code==="invalid_argument"){playerRef=null;$("saveNote").textContent="You can view picks here but not save your own. Ask for Contributor access.";}}).finally(()=>{dirty=Math.max(0,dirty-1);});},400);}
+async function resolveNames(){if(!userApi)return;const ids=Object.keys(players).filter(id=>!(id in names));if(!ids.length)return;
+  try{const ps=await userApi.profiles(ids);ids.forEach(id=>{names[id]=(ps&&ps[id]&&ps[id].name)||"Player";});}catch(_){ids.forEach(id=>names[id]="Player");}renderBoard();}
+const nameOf=id=>id===myId?"You":(names[id]||"Player");
+const initial=id=>(nameOf(id)||"?").trim().charAt(0).toUpperCase();
+const others=()=>Object.entries(players).filter(([id,d])=>id!==myId&&d&&(d.picks||[]).length);
+function allComments(gid){const out=[];
+  (myComments[gid]||[]).forEach(c=>out.push({...c,who:myId||"me"}));
+  for(const [id,d] of Object.entries(players)){if(id===myId||!d||!d.comments)continue;(d.comments[gid]||[]).forEach(c=>out.push({...c,who:id}));}
+  return out.sort((a,b)=>String(a.at).localeCompare(String(b.at)));}
+function commentRow(g){const list=allComments(g.id);const open=openCm.has(g.id);
+  const last=list[list.length-1];
+  const lbl=list.length?`<span>Comments <span class="ct">${list.length}</span></span><span class="note">${esc(last.who===myId||last.who==="me"?"You":nameOf(last.who))}: ${esc(last.text.length>40?last.text.slice(0,40)+"…":last.text)}</span>`:`<span>Comments</span><span class="ct">+ Add</span>`;
+  if(!open)return `<div class="cmt"><button type="button" class="cbtn${list.length?" has":""}" data-cm="${g.id}" aria-expanded="false">${lbl}</button></div>`;
+  return `<div class="cmt"><button type="button" class="cbtn" data-cm="${g.id}" aria-expanded="true"><span>Comments</span><span class="ct">Hide</span></button>
+    <div class="clist">${list.map(c=>`<div class="cm"><span class="by">${esc(c.who===myId||c.who==="me"?"You":nameOf(c.who))}</span> <span class="ts">${esc(fmtAt(c.at))}</span>${(c.who===myId||c.who==="me")?`<button type="button" class="del" data-cdel="${g.id}" data-cid="${esc(c.id)}" aria-label="Delete comment">Delete</button>`:""}<div>${esc(c.text)}</div></div>`).join("")||`<span class="note">No comments yet.</span>`}</div>
+    <form class="cform" data-cform="${g.id}"><input id="cin-${g.id}" data-cin="${g.id}" maxlength="280" placeholder="Why you like it, or trash talk" value="${esc(drafts[g.id]||"")}" aria-label="Comment on ${esc(g.away)} at ${esc(g.home)}"><button type="submit" class="primary">Post</button></form></div>`;}
+function renderH2H(games){const el=$("h2h");const ids=[myId,...others().map(([id])=>id)].filter(Boolean);
+  if(!myId||ids.length<2){el.hidden=true;return;}
+  const P=id=>id===myId?{picks,conf:confs}:{picks:players[id].picks||[],conf:players[id].conf||{}};
+  const rows=games.filter(g=>ids.some(id=>P(id).picks.some(p=>p.gameId===g.id)||P(id).conf[g.id]!=null));
+  if(!rows.length){el.hidden=true;return;}el.hidden=false;
+  el.innerHTML=`<span class="lbl">Head to head</span><div class="h2hwrap"><table><thead><tr><th>Game</th>${ids.map(id=>`<th>${esc(nameOf(id))}</th>`).join("")}</tr></thead><tbody>`+
+    rows.map(g=>{const sides=ids.map(id=>P(id).picks.filter(p=>p.gameId===g.id).map(p=>p.side).sort().join());const agree=sides.every(x=>x&&x===sides[0]);
+      return `<tr><td>${esc(g.a)} @ ${esc(g.h)}<div class="sub">${esc(new Date(g.kick).toLocaleDateString(undefined,{weekday:"short"}))}</div></td>`+ids.map(id=>{const pp=P(id);const mine=pp.picks.filter(p=>p.gameId===g.id);const c=pp.conf[g.id];
+        return `<td class="${agree?"agree":""}">${mine.length?mine.map(p=>`<strong>${esc(p.text)}</strong> <span class="num">${oddsStr(p.price)}</span>`).join("<br>"):`<span class="sub">–</span>`}${c!=null?`<div class="sub">Conf ${esc(c)}</div>`:""}</td>`;}).join("")+`</tr>`;}).join("")+
+    `</tbody></table></div><span class="note">Green rows are games where you agree.</span>`;}
+function setConf(gid,raw){const v=raw.trim()===""?null:Math.max(1,Math.min(10,Math.round(+raw)));
+  if(raw.trim()!==""&&!isFinite(+raw))return;
+  if(v===null)delete confs[gid];else confs[gid]=v;
+  clearTimeout(confTimers[gid]);confTimers[gid]=setTimeout(async()=>{
+    persistMine();
+    renderTray();},500);}
+const pickId=(g,k)=>g+"_"+k;
+async function togglePick(gid,k){const g=board.games.find(x=>x.id===gid);if(!g)return;const id=pickId(gid,k);
+  const has=picks.some(p=>p.id===id);const book=$("boardBook").value;const q=quote(g,k,book);
+  if(has){picks=picks.filter(p=>p.id!==id);renderBoard();persistMine();return;}
+  else if(q){const pk={id,gameId:gid,side:k,book:q.book,line:q.line===undefined?null:q.line,price:q.price,at:new Date().toISOString(),text:pickText(g,k,q),event:`${g.away} @ ${g.home}`};
+    picks=[...picks,pk];renderBoard();persistMine();}}
+function savePicksLocal(){try{localStorage.setItem("bet-ledger-picks",JSON.stringify(picks));}catch(_){}}
+function renderTray(){const t=$("tray");const live=picks.filter(p=>board.games.some(g=>g.id===p.gameId));
+  if(!live.length){t.hidden=true;return;}t.hidden=false;
+  t.innerHTML=`<div class="row"><span class="lbl">Your picks (${live.length})</span><button type="button" class="ghost" data-tray="clear">Clear all</button></div>`+
+   live.map(p=>{const logged=loggedSides().has(p.id);const g=board.games.find(x=>x.id===p.gameId);
+     const mine={line:p.line===null?undefined:p.line,price:p.price};const cons=quote(g,p.side,"Consensus");
+     const sameBook=(p.book!=="Consensus"&&p.book!=="Best"&&p.book!=="Open")?quote(g,p.side,p.book):null;
+     const fmt=q=>q?`${q.line!==undefined&&q.line!==null?(p.side==="o"?"o":p.side==="u"?"u":"")+(p.side==="o"||p.side==="u"?q.line:fmtLine(q.line))+" ":""}${oddsStr(q.price)}`:"–";
+     const mv=moveVs(p.side,mine,cons);
+     return `<div class="row"><span><strong>${esc(p.text.replace(/ [+-]?[\d.]+$|PK$/,""))}</strong>${confs[p.gameId]!=null?` <span class="pill">Conf ${confs[p.gameId]}</span>`:""}<br>
+      <span class="num">Picked ${fmt(mine)}</span> <span class="note">${esc(p.book)} · ${esc(fmtAt(p.at))}</span><br>
+      <span class="num">Now ${fmt(cons)}</span> <span class="note">consensus${sameBook?` · ${esc(p.book)} ${fmt(sameBook)}`:""}</span>
+      ${mv?` <span class="num ${mv.cls}">${mv.txt}</span>`:""}</span>
+      <span class="acts">${viewer?"":logged?`<span class="pill won">Logged</span>`:`<button type="button" class="primary" data-tray="log" data-id="${p.id}">Log bet</button>`}<button type="button" class="ghost" data-tray="rm" data-id="${p.id}" aria-label="Remove pick">×</button></span></div>`;}).join("");}
+// how the pick compares with the current number: positive = you have the better number
+function moveVs(k,mine,now){if(!now)return null;
+  const hasLine=mine.line!==undefined&&now.line!==undefined;
+  if(hasLine&&mine.line!==now.line){const d=(k==="o"?now.line-mine.line:k==="u"?mine.line-now.line:mine.line-now.line);
+    return{cls:d>0?"pos":"neg",txt:`${d>0?"▲ +":"▼ "}${Math.abs(d)} pt${Math.abs(d)===1?"":"s"} ${d>0?"better":"worse"} than now`};}
+  const v=dec(mine.price)/dec(now.price)-1;if(Math.abs(v)<0.0005)return{cls:"",txt:"no move"};
+  return{cls:v>0?"pos":"neg",txt:`${v>0?"▲":"▼"} CLV ${pct(v)}`};}
+function loggedSides(){return new Set(bets.filter(b=>b.gameId&&b.side).map(b=>pickId(b.gameId,b.side)));}
+function fmtAt(t){const d=new Date(t);return isNaN(d)?String(t):d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+/* ---------- form ---------- */
+function openForm(b){
+  editingId=b?b.id:null;confirmDel=false;
+  $("formTitle").textContent=b?"Edit bet":"Log a bet";
+  $("fDate").value=b?b.date:new Date().toISOString().slice(0,10);
+  $("fSportIn").value=b?b.sport:(bets[0]?.sport||"");
+  $("fEvent").value=b?b.event:"";$("fMarket").value=b?b.market:"Spread";$("fPick").value=b?b.pick:"";
+  $("fOdds").value=b?b.odds:"";$("fStake").value=b?b.stake:"";$("fBookIn").value=b?b.book||"":(bets[0]?.book||"");
+  $("fClose").value=b&&b.close?b.close:"";$("fPayout").value=b&&b.payout?b.payout:"";$("fStat").value=b?b.status:"pending";$("fNotes").value=b?b.notes||"":"";
+  $("delBtn").hidden=!b;$("delBtn").textContent="Delete bet";$("formErr").hidden=true;
+  updMarket();updToWin();$("sheet").hidden=false;$("fEvent").focus();
+}
+function closeForm(){$("sheet").hidden=true;editingId=null;pendingBoard=null;}
+function updMarket(){const c=$("fMarket").value==="Contest";$("payoutWrap").hidden=!c;$("fOdds").placeholder=c?"not used for contests":"-110";$("fOdds").disabled=c;$("fClose").disabled=c;updToWin();}
+function updToWin(){if($("fMarket").value==="Contest"){$("toWin").textContent="Contest: P/L is winnings minus entry fee";return;}const o=parseInt($("fOdds").value,10),s=parseFloat($("fStake").value);
+  $("toWin").textContent=(o&&Math.abs(o)>=100&&s>0)?`To win: ${money(profitOn(o,s))} · Payout ${money(s+profitOn(o,s))}`:"To win: –";}
+async function submit(e){
+  e.preventDefault();
+  const o=parseInt($("fOdds").value,10),s=parseFloat($("fStake").value),cRaw=$("fClose").value.trim(),c=cRaw?parseInt(cRaw,10):null;
+  const err=m=>{$("formErr").textContent=m;$("formErr").hidden=false;};
+  if(!$("fEvent").value.trim()||!$("fPick").value.trim()||!$("fSportIn").value.trim())return err("Fill in sport, event and pick.");
+  const C=$("fMarket").value==="Contest";
+  if(!C&&(!o||Math.abs(o)<100))return err("Enter American odds like -110 or +150.");
+  if(!(s>0))return err("Enter a stake above zero.");
+  if(!C&&cRaw&&(!c||Math.abs(c)<100))return err("Closing odds must be American odds like -120, or left blank.");
+  const prev=bets.find(b=>b.id===editingId);
+  const bet={...(prev||{}),...(!prev&&pendingBoard?pendingBoard:{}),id:editingId||("b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),created:prev?prev.created:Date.now(),
+    date:$("fDate").value,sport:$("fSportIn").value.trim(),event:$("fEvent").value.trim(),market:$("fMarket").value,pick:$("fPick").value.trim(),
+    odds:C?null:o,payout:C?(parseFloat($("fPayout").value)||0):null,stake:Math.round(s*100)/100,book:$("fBookIn").value.trim(),close:C?null:c,status:$("fStat").value,notes:$("fNotes").value.trim()};
+  $("saveBtn").disabled=true;
+  try{await store.save(bet);showingExamples=false;pendingBoard=null;closeForm();}
+  catch(x){err(x&&x.code==="quota_exceeded"?"Storage is full. Delete some old bets and try again.":"Couldn't save that bet. Check your connection and try again.");}
+  finally{$("saveBtn").disabled=false;}
+}
+
+/* ---------- storage: private db per viewer, browser fallback ---------- */
+function localStore(){
+  try{bets=JSON.parse(localStorage.getItem(LS_KEY)||"[]");}catch(_){bets=[];}
+  const persist=()=>{try{localStorage.setItem(LS_KEY,JSON.stringify(bets));}catch(_){}};
+  return{save(b){const i=bets.findIndex(x=>x.id===b.id);i>=0?bets[i]=b:bets.push(b);persist();render();},
+         remove(id){bets=bets.filter(b=>b.id!==id);persist();render();}};
+}
+async function init(){
+  render();
+  let db=null,uid=null;
+  try{board=JSON.parse($("boardSnap").textContent);render();}catch(_){}
+  let owner=true;
+  try{if(window.claude&&claude.use){const [d,u]=await Promise.all([claude.use("db"),claude.use("user")]);db=d;uid=u?await u.id():null;
+    owner=u?!!(await u.isOwner()):!d?false:true;userApi=u;}}catch(_){}
+  const startPlayers=async()=>{if(!db||!uid)return false;myId=uid;playerRef=db.collection("players").doc(uid);
+    let first=true;
+    db.collection("players").onSnapshot(s=>{players={};s.docs.forEach(d=>{players[d.id]=d.data();});
+      const mine=players[myId];if(mine&&!dirty){picks=mine.picks||[];confs=mine.conf||{};myComments=mine.comments||{};}
+      if(first){first=false;if(!mine&&owner)migrate();}
+      resolveNames();renderBoard();},()=>{});return true;};
+  const migrate=async()=>{try{const [pc,cc]=await Promise.all([db.collection("picks").get(),db.collection("conf").get()]);
+    const p0=pc.docs.map(d=>d.data()),c0={};cc.docs.forEach(d=>{c0[d.id]=d.data().value;});
+    if(p0.length||Object.keys(c0).length){picks=p0;confs=c0;persistMine();}}catch(_){}};
+  if(!owner){
+    viewer=true;document.body.classList.add("viewer");
+    if(await startPlayers())$("saveNote").textContent="Shared NFL lines board. Your picks and confidence save to your account and show next to everyone else's.";
+    else{$("saveNote").textContent="Shared NFL lines board. Your picks and confidence are saved in this browser only.";
+      try{picks=JSON.parse(localStorage.getItem("bet-ledger-picks")||"[]");confs=JSON.parse(localStorage.getItem("bet-ledger-conf")||"{}");}catch(_){}}
+    if(db)db.doc("board/nfl").onSnapshot(s=>{if(s.exists)board=s.data();render();},()=>{});
+    render();return;
+  }
+  if(db){
+    const col=db.collection("bets");
+    $("saveNote").textContent="Private to you. Saved to your account.";
+    store={save:b=>col.doc(b.id).set(b),remove:id=>col.doc(id).delete()};
+    // one-time move from the earlier per-viewer location
+    if(uid){try{const old=await db.collection("data/users/"+uid).get();
+      for(const d of old.docs){await col.doc(d.id).set(d.data());await db.collection("data/users/"+uid).doc(d.id).delete();}}catch(_){}}
+    await startPlayers();
+    db.doc("board/nfl").onSnapshot(s=>{board=s.exists?s.data():null;render();},()=>{});
+    col.onSnapshot(snap=>{bets=snap.docs.map(d=>d.data());render();},
+      e=>{$("saveNote").textContent="Live sync stopped. Reload the page to reconnect.";});
+  }else{
+    try{const r=await fetch("../lines.json?t="+Math.floor(Date.now()/60000),{cache:"no-store"});if(r.ok){board=await r.json();}}catch(_){}
+    $("importBtn").hidden=true;
+    store=localStore();try{picks=JSON.parse(localStorage.getItem("bet-ledger-picks")||"[]");confs=JSON.parse(localStorage.getItem("bet-ledger-conf")||"{}");}catch(_){picks=[];}
+    $("saveNote").textContent="Saved in this browser only. Use Export CSV to back up.";
+    render();
+  }
+}
+
+/* ---------- events ---------- */
+$("addBtn").onclick=()=>openForm(null);
+$("cancelBtn").onclick=closeForm;
+$("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeForm();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("sheet").hidden)closeForm();});
+$("betForm").addEventListener("submit",submit);
+["fOdds","fStake"].forEach(id=>$(id).addEventListener("input",updToWin));
+$("fMarket").addEventListener("change",updMarket);
+$("delBtn").onclick=async()=>{
+  if(!confirmDel){confirmDel=true;$("delBtn").textContent="Tap again to delete";return;}
+  try{await store.remove(editingId);closeForm();}catch(_){$("formErr").textContent="Couldn't delete that bet. Try again.";$("formErr").hidden=false;}
+};
+["fSport","fStatus","fBook"].forEach(id=>$(id).addEventListener("change",render));
+$("boardBook").addEventListener("change",()=>{try{localStorage.setItem("bet-ledger-book",$("boardBook").value);}catch(_){}renderBoard();});
+$("boardToggle").onclick=()=>{boardHidden=!boardHidden;renderBoard();};
+$("games").addEventListener("click",e=>{const t=e.target.closest("button[data-act=pickline]");if(t)togglePick(t.dataset.g,t.dataset.k);});
+$("games").addEventListener("input",e=>{const t=e.target;if(t.dataset&&t.dataset.conf){t.value=t.value.replace(/[^0-9]/g,"").slice(0,2);setConf(t.dataset.conf,t.value);t.classList.toggle("set",t.value!=="");}});
+$("games").addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.conf&&t.value!==""){const v=Math.max(1,Math.min(10,+t.value));t.value=v;}});
+$("games").addEventListener("click",e=>{const b=e.target.closest("button[data-cm]");if(b){const g=b.dataset.cm;openCm.has(g)?openCm.delete(g):openCm.add(g);renderBoard();if(openCm.has(g)){const i=$("cin-"+g);if(i)i.focus();}return;}
+  const d=e.target.closest("button[data-cdel]");if(d){const g=d.dataset.cdel;myComments={...myComments,[g]:(myComments[g]||[]).filter(c=>c.id!==d.dataset.cid)};if(!myComments[g].length)delete myComments[g];renderBoard();persistMine();}});
+$("games").addEventListener("input",e=>{if(e.target.dataset&&e.target.dataset.cin)drafts[e.target.dataset.cin]=e.target.value;});
+$("games").addEventListener("submit",e=>{const f=e.target.closest("form[data-cform]");if(!f)return;e.preventDefault();const g=f.dataset.cform;const t=(drafts[g]||"").trim();if(!t)return;
+  const c={id:"c"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),text:t.slice(0,280),at:new Date().toISOString()};
+  myComments={...myComments,[g]:[...(myComments[g]||[]),c]};drafts[g]="";renderBoard();persistMine();const i=$("cin-"+g);if(i)i.focus();});
+$("tray").addEventListener("click",async e=>{const t=e.target.closest("button[data-tray]");if(!t)return;const a=t.dataset.tray;
+  if(a==="log"){const p=picks.find(x=>x.id===t.dataset.id);if(!p)return;openFromPick(p);}
+  if(a==="rm"){const p=picks.find(x=>x.id===t.dataset.id);if(p)togglePick(p.gameId,p.side);}
+  if(a==="clear"){picks=[];renderBoard();persistMine();}});
+$("hideExamples").onclick=()=>{showingExamples=false;render();};
+$("slips").addEventListener("click",async e=>{
+  const t=e.target.closest("button");if(!t)return;const a=t.dataset.act,id=t.dataset.id;
+  if(a==="add")return openForm(null);
+  if(a==="examples"){showingExamples=true;return render();}
+  const b=bets.find(x=>x.id===id);if(!b)return;
+  if(a==="edit")return openForm(b);
+  if(["won","lost","push"].includes(a)){t.disabled=true;try{const L=liveLine(b);await store.save({...b,status:a,close:b.close||(L&&L.price)||b.line||null});}catch(_){t.disabled=false;}}
+});
+$("exportBtn").onclick=async()=>{
+  const cols=["date","sport","event","market","pick","odds","stake","book","close","status","notes"];
+  const rows=[[...cols,"profit","clv"].join(",")].concat(bets.map(b=>[...cols.map(k=>b[k]??""),result(b).toFixed(2),clv(b)===null?"":(clv(b)*100).toFixed(2)+"%"].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")));
+  try{const dl=window.claude&&claude.use?await claude.use("downloads"):null;if(!dl)throw 0;await dl.save({filename:"bet-ledger.csv",data:rows.join("\n")});}
+  catch(_){if(!window.claude){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));a.download="bet-ledger.csv";document.body.appendChild(a);a.click();a.remove();}}
+};
+window.addEventListener("resize",()=>chart(current().filter(b=>{const fs=$("fSport").value,fst=$("fStatus").value,fb=$("fBook").value;return(!fs||b.sport===fs)&&(!fst||b.status===fst)&&(!fb||b.book===fb);})));
+/* ---------- import ---------- */
+let parsed=[];
+const keyOf=b=>[b.date,(b.event||"").toLowerCase().replace(/\s+/g," "),(b.pick||"").toLowerCase().replace(/\s+/g," "),+b.odds,+b.stake].join("|");
+function impErr(m){$("impErr").textContent=m;$("impErr").hidden=!m;}
+function openImport(){parsed=[];$("impText").value="";$("impFile").value="";impErr("");$("impPreview").hidden=true;$("impPreview").innerHTML="";
+  $("impSave").hidden=true;$("impParse").hidden=false;$("impStatus").textContent="";$("impBook").value=bets[0]?.book||"";$("impSheet").hidden=false;$("impText").focus();}
+function closeImport(){$("impSheet").hidden=true;}
+$("importBtn").onclick=openImport;
+$("impCancel").onclick=closeImport;
+$("impSheet").addEventListener("click",e=>{if(e.target.id==="impSheet")closeImport();});
+$("impFile").addEventListener("change",async()=>{const f=$("impFile").files[0];if(!f)return;
+  try{$("impText").value=await f.text();impErr("");}catch(_){impErr("Couldn't read that file. Try pasting its contents instead.");}});
+$("impParse").onclick=async()=>{
+  const text=$("impText").value.trim();if(!text)return impErr("Paste your bet history or choose a file first.");
+  let sample=null;try{sample=await claude.use("sample");}catch(_){}
+  if(!sample)return impErr("Reading bet history needs Claude, which isn't available in this view. Open the page in Claude to import.");
+  impErr("");$("impParse").disabled=true;$("impStatus").textContent="Reading bets…";
+  const today=new Date().toISOString().slice(0,10);
+  const prompt=`Extract every placed sports bet from the bet history below. It may be text copied from a sportsbook website or app, or CSV rows.
+Return ONLY a JSON array. Each element is an object with exactly these keys:
+- date: "YYYY-MM-DD" when the bet was placed (or the game date if that's all there is). Today is ${today}; if the year is missing, use the most recent year that keeps the date on or before today.
+- sport: short label such as NFL, CFB, NBA, NCAAB, WNBA, MLB, NHL, Soccer, Tennis, Golf, UFC. Infer from teams if not stated.
+- event: matchup as "Away @ Home" when known, otherwise the event name.
+- market: one of "Spread","Moneyline","Total","Prop","Parlay","Future".
+- pick: the selection with its number, e.g. "Bills -2.5", "Over 47.5", "Chiefs ML". For parlays list legs separated by " / ".
+- odds: American odds as an integer (e.g. -110, 150). Convert decimal odds if needed.
+- stake: amount risked in dollars as a number.
+- book: sportsbook name if shown, else "".
+- status: "pending" (open), "won", "lost", "push", or "void" (cashed out counts as "won" if returned more than the stake, else "lost").
+- close: closing odds as integer if shown, else null.
+Skip deposits, bonuses, and anything that isn't a placed bet. If there are no bets, return [].
+
+BET HISTORY:
+${text.slice(0,60000)}`;
+  try{
+    const out=await sample.json(prompt,{modelTier:"default"});
+    const have=new Set(bets.map(keyOf));const book=$("impBook").value.trim();
+    parsed=(Array.isArray(out)?out:[]).map(b=>({date:String(b.date||today).slice(0,10),sport:String(b.sport||""),event:String(b.event||""),
+      market:["Spread","Moneyline","Total","Prop","Parlay","Future"].includes(b.market)?b.market:"Prop",pick:String(b.pick||""),
+      odds:parseInt(b.odds,10),stake:Math.round(parseFloat(b.stake)*100)/100,book:String(b.book||book||""),
+      status:["pending","won","lost","push","void"].includes(b.status)?b.status:"pending",close:b.close?parseInt(b.close,10):null,notes:"Imported"}))
+      .filter(b=>b.event&&b.pick&&Math.abs(b.odds)>=100&&b.stake>0)
+      .map(b=>({...b,dup:have.has(keyOf(b))}));
+    if(!parsed.length){$("impStatus").textContent="";return impErr("No bets found in that text. Copy the full bet history list, including odds and stakes.");}
+    const fresh=parsed.filter(b=>!b.dup).length;
+    $("impPreview").innerHTML=parsed.map((b,i)=>`<label class="prow"><input type="checkbox" data-i="${i}" ${b.dup?"":"checked"}><span${b.dup?' class="dup"':""}><strong>${esc(b.pick)}</strong> <span class="num">${oddsStr(b.odds)}</span> · ${esc(b.event)}<br><span class="note">${esc(b.date)} · ${esc(b.sport)} · ${esc(b.market)}${b.book?" · "+esc(b.book):""}${b.dup?" · already in ledger":""}</span></span><span class="num">${money(b.stake)} <span class="pill ${b.status}">${b.status}</span></span></label>`).join("");
+    $("impPreview").hidden=false;$("impParse").hidden=true;$("impSave").hidden=false;
+    $("impStatus").textContent=`Found ${parsed.length}, ${fresh} new. Check them, then import.`;
+  }catch(e){$("impStatus").textContent="";
+    impErr(e&&e.code==="rate_limited"?"Too many requests right now. Wait a minute and try again.":e&&e.code==="not_granted"?"Import needs permission to use Claude on this page.":"Couldn't read that history. Try a smaller chunk, such as one page of bets.");}
+  finally{$("impParse").disabled=false;}
+};
+$("impForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const pick=[...$("impPreview").querySelectorAll("input[type=checkbox]")].filter(c=>c.checked).map(c=>parsed[+c.dataset.i]);
+  if(!pick.length)return impErr("Select at least one bet to import.");
+  $("impSave").disabled=true;let n=0;
+  try{for(const b of pick){const {dup,...bet}=b;bet.id="b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);bet.created=Date.now()+n;
+      await store.save(bet);n++;$("impStatus").textContent=`Imported ${n} of ${pick.length}…`;}
+    showingExamples=false;closeImport();}
+  catch(x){impErr(`Imported ${n} of ${pick.length}. ${x&&x.code==="quota_exceeded"?"Storage is full.":"The rest didn't save. Try importing again; saved bets will be skipped."}`);}
+  finally{$("impSave").disabled=false;}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("impSheet").hidden)closeImport();});
+init();
+})();
+</script>
+
+</body></html>
