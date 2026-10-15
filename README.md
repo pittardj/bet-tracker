@@ -24,3 +24,6 @@ Signing in with Google syncs a person's picks, confidence and comments across de
 - `firebase-config.js` holds the Firebase web config (public by design). With it set to `null` the board runs without sign-in.
 - `firestore.rules` are the database security rules: group members can read each other's picks; each person can write only their own.
 - In the Firebase console: enable Authentication → Google, create a Firestore database, paste `firestore.rules`, and add `pittardj.github.io` and `fantalytics.pro` under Authentication → Settings → Authorized domains.
+
+## Odds comparison (`/compare`)
+https://pittardj.github.io/bet-tracker/compare/ shows every game with all sportsbooks plus Polymarket and Kalshi side by side, the best number on each side highlighted, and each book's hold. Filter by market or hide exchanges. Exchange prices are the current ask converted to American odds, before fees. Embed with `?bg=transparent`.

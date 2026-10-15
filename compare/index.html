@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFL Odds Comparison | Fantalytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Comparison page: header + market filter, then one table per game (rows = books/exchanges, columns = sides), best price per column marked */
+:root{
+  --bg:#EEF1EE; --panel:#FFFFFF; --ink:#14201B; --muted:#5B6A63; --line:#D5DDD8;
+  --accent:#1E6A4A; --accent-ink:#FFFFFF; --best:#DDF0E4; --ex:#EEF2F8; --exink:#3D5A80;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1512; --panel:#16201C; --ink:#E4ECE7; --muted:#93A39B; --line:#2A3832;
+  --accent:#4FB386; --accent-ink:#0B130F; --best:#173326; --ex:#18222E; --exink:#8DB0DA; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1512; --panel:#16201C; --ink:#E4ECE7; --muted:#93A39B; --line:#2A3832;
+  --accent:#4FB386; --accent-ink:#0B130F; --best:#173326; --ex:#18222E; --exink:#8DB0DA; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+body.transparent{background:transparent}
+.wrap{max-width:1100px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) 28px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+.head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;justify-content:space-between}
+h1{font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:2rem;line-height:1;margin:0}
+h2{font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:1.25rem;margin:0}
+.note{color:var(--muted);font-size:.8rem}
+.ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{font:inherit;font-size:.85rem;border:0;background:transparent;color:var(--ink);padding:6px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.chk{display:inline-flex;gap:6px;align-items:center;font-size:.85rem}
+a{color:var(--accent)}
+.game{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.ghead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.85rem}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:var(--muted);font-weight:600;vertical-align:bottom}
+thead tr.grp th{text-align:center;border-bottom:0;padding-bottom:0}
+td.num,td .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+td.best{background:var(--best);font-weight:600;box-shadow:inset 0 0 0 1px var(--accent)}
+td small{color:var(--muted);font-size:.72rem;margin-left:4px}
+tr.cons td{font-weight:600}
+tr.open td{color:var(--muted)}
+tr.ex td:first-child::after{content:"exchange";margin-left:6px;font-size:.62rem;font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--exink);background:var(--ex);padding:1px 5px;border-radius:99px}
+td.hold{color:var(--muted)}
+.sum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem}
+.sum span{white-space:nowrap}
+.sum b{font-family:var(--mono);font-weight:500}
+.foot{font-size:.75rem;color:var(--muted)}
+.hide-spread .c-spread,.hide-total .c-total,.hide-ml .c-ml{display:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1 id="title">NFL Odds Comparison</h1>
+      <div class="note" id="updated">Loading lines…</div>
+    </div>
+    <div class="ctl">
+      <div class="seg" role="group" aria-label="Market">
+        <button type="button" data-m="all" aria-pressed="true">All</button>
+        <button type="button" data-m="spread" aria-pressed="false">Spread</button>
+        <button type="button" data-m="total" aria-pressed="false">Total</button>
+        <button type="button" data-m="ml" aria-pressed="false">Moneyline</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="showEx" checked> Exchanges</label>
+      <a id="boardLink" href="../">Lines board</a>
+    </div>
+  </div>
+  <div id="games"></div>
+  <div class="foot">Shaded cells are the best number for that side among sportsbooks and exchanges (a better line first, then a better price). Hold is the book's built-in margin on that market; lower is better for you. Polymarket and Kalshi prices are the current ask converted to American odds, before exchange fees, and can move fast. Sportsbook lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
+</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const qs=new URLSearchParams(location.search);
+if(qs.get("theme")==="dark"||qs.get("theme")==="light")document.documentElement.dataset.theme=qs.get("theme");
+if(qs.get("bg")==="transparent")document.body.classList.add("transparent");
+const DATA_URL=qs.get("data")||"../lines.json";
+const EXCH=new Set(["Polymarket","Kalshi"]);
+let board=null,market="all";
+try{market=localStorage.getItem("cmp-market")||"all";$("showEx").checked=localStorage.getItem("cmp-ex")!=="0";}catch(_){}
+
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dec=o=>{o=+o;return o>0?1+o/100:1+100/Math.abs(o);};
+const imp=o=>1/dec(o);
+const odds=o=>o==null?"–":(o>0?"+":"")+o;
+const ln=v=>v===0?"PK":(v>0?"+":"")+v;
+const fmtAt=t=>{const d=new Date(t);return isNaN(d)?"":d.toLocaleString(undefined,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});};
+// sides: key, column index of line, price index, line transform, better-line test
+const SIDES=[
+  {k:"as",m:"spread",li:0,pi:1,line:a=>a[0],hi:true},
+  {k:"hs",m:"spread",li:0,pi:2,line:a=>a[0]==null?null:-a[0],hi:true},
+  {k:"o", m:"total", li:3,pi:4,line:a=>a[3],hi:false},
+  {k:"u", m:"total", li:3,pi:5,line:a=>a[3],hi:true},
+  {k:"am",m:"ml",    li:null,pi:6,line:()=>null},
+  {k:"hm",m:"ml",    li:null,pi:7,line:()=>null},
+];
+function val(a,s){if(!a)return null;const p=a[s.pi];if(p==null)return null;const l=s.line(a);if(s.li!=null&&l==null)return null;return{l,p};}
+function better(s,x,y){if(!y)return true;if(s.li!=null&&x.l!==y.l)return s.hi?x.l>y.l:x.l<y.l;return dec(x.p)>dec(y.p);}
+const hold=(p1,p2)=>p1==null||p2==null?null:imp(p1)+imp(p2)-1;
+const holdTxt=h=>h==null?"–":(h*100).toFixed(1)+"%";
+
+function render(){
+  if(!board)return;
+  $("title").textContent=(board.label||"NFL")+" Odds Comparison";
+  $("updated").textContent="Sportsbooks updated "+fmtAt(board.updatedAt)+(board.exchanges?` · Exchanges updated ${fmtAt(Object.values(board.exchanges)[0].updatedAt)}`:"");
+  if(board.sourceUrl)$("src").href=board.sourceUrl;
+  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===market));
+  const showEx=$("showEx").checked;
+  const books=["Consensus",...board.books.filter(b=>b!=="Consensus"&&b!=="Open"&&(showEx||!EXCH.has(b))),"Open"].filter(b=>board.books.includes(b));
+  const now=Date.now();
+  const games=board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3);
+  const wrapCls=market==="all"?"":["spread","total","ml"].filter(m=>m!==market).map(m=>"hide-"+m).join(" ");
+  $("games").innerHTML=games.map(g=>{
+    const best={};for(const s of SIDES){let bv=null,bb=[];for(const b of books){if(b==="Consensus"||b==="Open")continue;const v=val(g.b[b],s);if(!v)continue;
+      if(!bv||better(s,v,bv)){bv=v;bb=[b];}else if(!better(s,bv,v))bb.push(b);}best[s.k]={v:bv,books:bb};}
+    const cell=(b,s)=>{const v=val(g.b[b],s);const isBest=best[s.k].books.includes(b)&&b!=="Consensus"&&b!=="Open";
+      if(!v)return `<td class="num c-${s.m}">–</td>`;
+      const top=s.k==="o"?"o"+v.l:s.k==="u"?"u"+v.l:s.li!=null?ln(v.l):"";
+      return `<td class="num c-${s.m}${isBest?" best":""}">${top?esc(top)+"<small>"+esc(odds(v.p))+"</small>":esc(odds(v.p))}</td>`;};
+    const rows=books.map(b=>{const a=g.b[b];
+      const hs=a&&a[1]!=null&&a[2]!=null?hold(a[1],a[2]):null,ht=a&&a[4]!=null&&a[5]!=null?hold(a[4],a[5]):null,hm=a&&a[6]!=null&&a[7]!=null?hold(a[6],a[7]):null;
+      const link=g.links&&g.links[b];
+      return `<tr class="${b==="Consensus"?"cons":b==="Open"?"open":EXCH.has(b)?"ex":""}"><td>${link?`<a href="${esc(link)}" target="_blank" rel="noopener">${esc(b)}</a>`:esc(b==="Open"?"Opening line":b)}</td>${SIDES.map(s=>cell(b,s)).join("")}
+        <td class="num hold c-spread">${holdTxt(hs)}</td><td class="num hold c-total">${holdTxt(ht)}</td><td class="num hold c-ml">${holdTxt(hm)}</td></tr>`;}).join("");
+    const sum=SIDES.filter(s=>market==="all"||s.m===market).map(s=>{const b=best[s.k];if(!b.v)return"";
+      const name=s.k==="as"?g.a:s.k==="hs"?g.h:s.k==="o"?"Over":s.k==="u"?"Under":s.k==="am"?g.a+" ML":g.h+" ML";
+      const top=s.k==="o"||s.k==="u"?b.v.l+" ":s.li!=null?ln(b.v.l)+" ":"";
+      return `<span>${esc(name)} <b>${esc(top+odds(b.v.p))}</b> <span class="note">${esc(b.books.slice(0,3).join(", "))}${b.books.length>3?" +"+(b.books.length-3):""}</span></span>`;}).join("");
+    const d=new Date(g.kick);
+    return `<section class="game" aria-label="${esc(g.away)} at ${esc(g.home)}"><div class="ghead"><h2>${esc(g.away)} @ ${esc(g.home)}</h2><span class="note">${d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span></div>
+      <div class="sum"><span class="note">Best:</span>${sum}</div>
+      <div class="tw ${wrapCls}"><table>
+        <thead><tr class="grp"><th></th><th class="c-spread" colspan="2">Spread</th><th class="c-total" colspan="2">Total</th><th class="c-ml" colspan="2">Moneyline</th><th colspan="3">Hold</th></tr>
+        <tr><th>Book</th><th class="c-spread">${esc(g.a)}</th><th class="c-spread">${esc(g.h)}</th><th class="c-total">Over</th><th class="c-total">Under</th><th class="c-ml">${esc(g.a)}</th><th class="c-ml">${esc(g.h)}</th><th class="c-spread">Spr</th><th class="c-total">Tot</th><th class="c-ml">ML</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></section>`;}).join("")||`<p class="note">No upcoming games right now.</p>`;
+}
+document.querySelector(".seg").addEventListener("click",e=>{const b=e.target.closest("button[data-m]");if(!b)return;market=b.dataset.m;try{localStorage.setItem("cmp-market",market);}catch(_){}render();});
+$("showEx").addEventListener("change",()=>{try{localStorage.setItem("cmp-ex",$("showEx").checked?"1":"0");}catch(_){}render();});
+if(qs.get("bg"))$("boardLink").href="../?bg="+encodeURIComponent(qs.get("bg"));
+async function load(){try{const r=await fetch(DATA_URL+(DATA_URL.includes("?")?"&":"?")+"t="+Math.floor(Date.now()/60000),{cache:"no-store"});if(!r.ok)throw 0;board=await r.json();render();}
+  catch(_){if(!board)$("updated").textContent="Couldn't load lines right now. Try refreshing the page.";}}
+load();setInterval(load,5*60*1000);
+const ro=new ResizeObserver(()=>{try{parent.postMessage({fantalyticsLinesHeight:document.documentElement.scrollHeight},"*");}catch(_){}});ro.observe(document.body);
+})();
+</script>
+</body>
+</html>
