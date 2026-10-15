@@ -54,6 +54,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .row{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-between;align-items:center;font-size:.88rem;border-top:1px dashed var(--line);padding-top:8px}
 .row:first-child{border-top:0;padding-top:0}
 .pill{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--sel);color:var(--accent)}
+.shared{background:var(--sel);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:.88rem}
+.btns{display:flex;gap:6px;flex-wrap:wrap}
+.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.toast{font-size:.8rem;color:var(--accent)}
 .foot{font-size:.75rem;color:var(--muted)}
 .foot a{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -71,6 +75,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
       <select id="book"></select>
     </div>
   </div>
+  <div class="shared" id="sharedBar" hidden></div>
   <div class="games" id="games"></div>
   <div class="tray" id="tray" hidden></div>
   <div class="foot">Tap a price to mark your pick; tap again to clear it. Add a 1–10 confidence on the right. Picks are saved in this browser. Lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>, refreshed several times a day. Check your sportsbook for its current price before betting. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
@@ -83,8 +88,13 @@ if(qs.get("theme")==="dark"||qs.get("theme")==="light")document.documentElement.
 if(qs.get("bg")==="transparent")document.body.classList.add("transparent");
 const DATA_URL=qs.get("data")||"lines.json";
 const LS="fantalytics-lines-v1";
-let board=null,state={picks:{},conf:{},book:"Consensus"};
+let board=null,state={picks:{},conf:{},book:"Consensus"};let shared=null;
 try{Object.assign(state,JSON.parse(localStorage.getItem(LS)||"{}"));}catch(_){}
+// shared card: ?p=<base64url JSON of [[gameId,side,line,price,book,conf,atMs],...]>&n=<name>
+try{const raw=qs.get("p");if(raw){const arr=JSON.parse(decodeURIComponent(escape(atob(raw.replace(/-/g,"+").replace(/_/g,"/")))));
+  const picks={},conf={};for(const [g,k,l,pr,bk,c,at] of arr){picks[g+"_"+k]={gameId:g,side:k,line:l,price:pr,book:bk,text:"",at:new Date(at||Date.now()).toISOString()};if(c)conf[g]=c;}
+  shared={picks,conf,name:(qs.get("n")||"").slice(0,40)};}}catch(_){shared=null;}
+const view=()=>shared||state;
 const save=()=>{try{localStorage.setItem(LS,JSON.stringify(state));}catch(_){}};
 
 const dec=o=>{o=+o;return o>0?1+o/100:1+100/Math.abs(o);};
@@ -127,9 +137,9 @@ function render(){
   $("games").innerHTML=games.map(g=>{
     const cell=k=>{const q=quote(g,k,book);if(!q)return `<button type="button" class="odd" disabled>–</button>`;
       const top=k==="o"?"o"+q.line:k==="u"?"u"+q.line:q.line!==undefined?fmtLine(q.line):oddsStr(q.price);
-      const on=!!state.picks[g.id+"_"+k];
+      const on=!!view().picks[g.id+"_"+k];
       return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}</button>`;};
-    const d=new Date(g.kick),c=state.conf[g.id];
+    const d=new Date(g.kick),c=view().conf[g.id];
     return `<div class="game"><div class="kick">${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
       <span></span><span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
       <label class="conf"><span class="colh">Conf</span><input id="c-${g.id}" data-conf="${g.id}" class="${c!=null?"set":""}" inputmode="numeric" maxlength="2" placeholder="–" value="${c!=null?c:""}" aria-label="Confidence 1 to 10, ${esc(g.away)} at ${esc(g.home)}"></label>
@@ -138,26 +148,40 @@ function render(){
   if(fid){const el=$("c-"+fid);if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(_){}}}
   renderTray(games);
 }
-function renderTray(games){
-  const t=$("tray");const list=Object.values(state.picks).filter(p=>games.some(g=>g.id===p.gameId));
+function renderShared(){const bar=$("sharedBar");if(!shared){bar.hidden=true;return;}bar.hidden=false;
+  bar.innerHTML=`<span>You're viewing ${shared.name?esc(shared.name)+"'s":"a shared"} picks card. Picked prices are compared with the current consensus.</span><span class="btns"><button type="button" id="saveShared">Save to my picks</button><button type="button" class="primary" id="exitShared">Make my own</button></span>`;
+  $("saveShared").onclick=()=>{Object.assign(state.picks,shared.picks);Object.assign(state.conf,shared.conf);save();exitShared();};
+  $("exitShared").onclick=exitShared;}
+function exitShared(){shared=null;history.replaceState(null,"",location.pathname+(qs.get("bg")?"?bg="+qs.get("bg"):""));render();}
+function renderTray(games){renderShared();
+  const t=$("tray");const list=Object.values(view().picks).filter(p=>games.some(g=>g.id===p.gameId));
   if(!list.length){t.hidden=true;return;}t.hidden=false;
-  t.innerHTML=`<div class="row"><span class="lbl">Your picks (${list.length})</span><button type="button" data-clear="1">Clear all</button></div>`+
-    list.map(p=>{const g=board.games.find(x=>x.id===p.gameId);const cons=quote(g,p.side,"Consensus");const mine={line:p.line,price:p.price};const mv=move(p.side,mine,cons);const c=state.conf[p.gameId];
+  t.innerHTML=`<div class="row"><span class="lbl">${shared?esc(shared.name?shared.name+"'s":"Shared")+" picks":"Your picks"} (${list.length})</span><span class="btns"><span class="toast" id="toast" aria-live="polite"></span><button type="button" data-copy="1">Copy picks</button>${shared?"":`<button type="button" class="primary" data-share="1">Share link</button><button type="button" data-clear="1">Clear all</button>`}</span></div>`+
+    list.map(p=>{const g=board.games.find(x=>x.id===p.gameId);const cons=quote(g,p.side,"Consensus");const mine={line:p.line,price:p.price};const mv=move(p.side,mine,cons);const c=view().conf[p.gameId];p.text=p.text||pickText(g,p.side);
       return `<div class="row"><span><strong>${esc(p.text)}</strong>${c!=null?` <span class="pill">Conf ${c}</span>`:""} <span class="note">${esc(g.away)} @ ${esc(g.home)}</span><br>
         <span class="num">Picked ${esc(fmtQ(p.side,p.line==null?{price:p.price}:{line:p.line,price:p.price}))}</span> <span class="note">${esc(p.book==="Best"?"":p.book)} ${esc(fmtAt(p.at))}</span><br>
         <span class="num">Now ${esc(fmtQ(p.side,cons))}</span> <span class="note">consensus</span>${mv?` <span class="num ${mv.c}">${mv.t}</span>`:""}</span>
-        <button type="button" data-rm="${p.gameId}_${p.side}" aria-label="Remove pick">×</button></div>`;}).join("");
+        ${shared?"":`<button type="button" data-rm="${p.gameId}_${p.side}" aria-label="Remove pick">×</button>`}</div>`;}).join("");
 }
-$("games").addEventListener("click",e=>{const b=e.target.closest("button[data-g]");if(!b)return;
+$("games").addEventListener("click",e=>{const b=e.target.closest("button[data-g]");if(!b||shared)return;
   const g=board.games.find(x=>x.id===b.dataset.g),k=b.dataset.k,id=g.id+"_"+k;
   if(state.picks[id])delete state.picks[id];
   else{const q=quote(g,k,$("book").value);if(!q)return;state.picks[id]={gameId:g.id,side:k,line:q.line===undefined?null:q.line,price:q.price,book:q.book,text:pickText(g,k),at:new Date().toISOString()};}
   save();render();});
-$("games").addEventListener("input",e=>{const t=e.target;if(!t.dataset.conf)return;t.value=t.value.replace(/[^0-9]/g,"").slice(0,2);
+$("games").addEventListener("input",e=>{const t=e.target;if(!t.dataset.conf)return;if(shared){t.value=shared.conf[t.dataset.conf]||"";return;}t.value=t.value.replace(/[^0-9]/g,"").slice(0,2);
   if(t.value==="")delete state.conf[t.dataset.conf];else{state.conf[t.dataset.conf]=Math.max(1,Math.min(10,+t.value));}
   t.classList.toggle("set",t.value!=="");save();renderTray(board.games.filter(g=>new Date(g.kick).getTime()>Date.now()-4*3600e3));});
 $("games").addEventListener("change",e=>{const t=e.target;if(t.dataset.conf&&t.value!=="")t.value=state.conf[t.dataset.conf];});
+function cardText(list){const v=view();return (board.label||"NFL")+" picks\n"+list.map(p=>{const g=board.games.find(x=>x.id===p.gameId);if(!g)return"";
+  const c=v.conf[p.gameId];return `${pickText(g,p.side)} ${fmtQ(p.side,p.line==null?{price:p.price}:{line:p.line,price:p.price})}${p.book&&p.book!=="Consensus"&&p.book!=="Best"?" ("+p.book+")":""}${c?" · conf "+c+"/10":""} | ${g.a} @ ${g.h}`;}).filter(Boolean).join("\n");}
+function shareUrl(list){const v=view();const arr=list.map(p=>[p.gameId,p.side,p.line,p.price,p.book,v.conf[p.gameId]||0,new Date(p.at).getTime()]);
+  const b64=btoa(unescape(encodeURIComponent(JSON.stringify(arr)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  const base=(qs.get("site")||"https://pittardj.github.io/bet-tracker/");return base+"?p="+b64;}
+async function copy(txt,msg){const t=$("toast");try{await navigator.clipboard.writeText(txt);t.textContent=msg;}catch(_){window.prompt("Copy this:",txt);}setTimeout(()=>{const x=$("toast");if(x)x.textContent="";},2500);}
+const liveList=()=>Object.values(view().picks).filter(p=>board.games.some(g=>g.id===p.gameId&&new Date(g.kick).getTime()>Date.now()-4*3600e3));
 $("tray").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.copy){copy(cardText(liveList()),"Copied");return;}
+  if(b.dataset.share){const l=liveList();copy(cardText(l)+"\n"+shareUrl(l),"Link copied");return;}
   if(b.dataset.clear)state.picks={};else if(b.dataset.rm)delete state.picks[b.dataset.rm];save();render();});
 $("book").addEventListener("change",()=>{state.book=$("book").value;save();render();});
 

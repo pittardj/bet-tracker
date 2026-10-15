@@ -8,7 +8,10 @@ A self-contained lines board for Fantalytics.pro: spreads, totals and moneylines
 ## Embed on Fantalytics.pro (Readdy)
 Add an iframe pointing at the hosted page, e.g.
 
-    <iframe src="https://pittardj.github.io/bet-tracker/" title="NFL Lines Board" style="width:100%;height:1400px;border:0" loading="lazy"></iframe>
+    <iframe src="https://pittardj.github.io/bet-tracker/" title="NFL Lines Board" allow="clipboard-write" style="width:100%;height:1400px;border:0" loading="lazy"></iframe>
 
 Options: `?theme=dark` or `?theme=light` to force a theme, `?bg=transparent` to let your page background show through.
 The page posts `{fantalyticsLinesHeight: <px>}` to its parent whenever its height changes, if you want the iframe to auto-size.
+
+## Sharing picks
+Tap prices to pick, add confidence, then use **Share link** in the picks tray. It copies a text card plus a link like `https://pittardj.github.io/bet-tracker/?p=...` (add `&n=YourName` to label it). Anyone opening the link sees those picks highlighted, with the price picked compared to the current consensus, and can save them or start their own. Add `&site=<url>` to the board's iframe src to make shared links point at your own page instead.
