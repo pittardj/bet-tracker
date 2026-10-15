@@ -131,7 +131,7 @@ const fmtAt=t=>{const d=new Date(t);return isNaN(d)?"":d.toLocaleString(undefine
 const nick=n=>n.split(" ").pop();
 
 function sideVal(arr,k){if(!arr)return null;const [as,ap,hp,t,op,up,ma,mh]=arr;
-  if(k==="sa")return as==null||ap==null?null:{line:as,price:ap};if(k==="sh")return as==null||hp==null?null:{line:-as,price:hp};
+  if(k==="sa")return as==null?null:{line:as,price:ap};if(k==="sh")return as==null?null:{line:-as,price:hp};
   if(k==="o")return t==null||op==null?null:{line:t,price:op};if(k==="u")return t==null||up==null?null:{line:t,price:up};
   if(k==="ma")return ma==null?null:{price:ma};if(k==="mh")return mh==null?null:{price:mh};return null;}
 function better(k,x,y){if(!y)return true;
@@ -139,13 +139,14 @@ function better(k,x,y){if(!y)return true;
   else if(k==="o"){if(x.line!==y.line)return x.line<y.line;}else if(k==="u"){if(x.line!==y.line)return x.line>y.line;}
   return dec(x.price)>dec(y.price);}
 function quote(g,k,book){
-  if(book==="Best"){let best=null,bk=null;for(const n of board.books){if(n==="Open"||n==="Consensus")continue;const v=sideVal(g.b[n],k);if(v&&better(k,v,best)){best=v;bk=n;}}return best?{...best,book:bk}:null;}
-  const v=sideVal(g.b[book],k);return v?{...v,book}:null;}
+  if(book==="Best"){let best=null,bk=null;for(const n of board.books){if(n==="Open"||n==="Consensus")continue;const v=sideVal(g.b[n],k);if(v&&v.price!=null&&better(k,v,best)){best=v;bk=n;}}return best?{...best,book:bk}:null;}
+  const v=sideVal(g.b[book],k);return v&&(v.price!=null||v.line!==undefined)?{...v,book}:null;}
 function pickText(g,k){return k==="sa"?nick(g.away):k==="sh"?nick(g.home):k==="o"?"Over":k==="u"?"Under":k==="ma"?nick(g.away)+" ML":nick(g.home)+" ML";}
-function fmtQ(k,q){if(!q)return"–";if(q.line===undefined)return oddsStr(q.price);return (k==="o"?"o"+q.line:k==="u"?"u"+q.line:fmtLine(q.line))+" "+oddsStr(q.price);}
+function fmtQ(k,q){if(!q)return"–";if(q.line===undefined)return oddsStr(q.price);return (k==="o"?"o"+q.line:k==="u"?"u"+q.line:fmtLine(q.line))+" "+(q.price==null?"pick'em":oddsStr(q.price));}
 function move(k,mine,now){if(!now)return null;
   if(mine.line!=null&&now.line!==undefined&&mine.line!==now.line){const d=k==="o"?now.line-mine.line:mine.line-now.line;
     return{c:d>0?"pos":"neg",t:`${d>0?"▲ +":"▼ "}${Math.abs(d)} pt${Math.abs(d)===1?"":"s"} ${d>0?"better":"worse"} than now`};}
+  if(mine.price==null||now.price==null)return{c:"",t:"no move"};
   const v=dec(mine.price)/dec(now.price)-1;if(Math.abs(v)<.0005)return{c:"",t:"no move"};
   return{c:v>0?"pos":"neg",t:`${v>0?"▲":"▼"} ${pct(v)} vs now`};}
 
@@ -163,7 +164,7 @@ function render(){
     const cell=k=>{const q=quote(g,k,book);if(!q)return `<button type="button" class="odd" disabled>–</button>`;
       const top=k==="o"?"o"+q.line:k==="u"?"u"+q.line:q.line!==undefined?fmtLine(q.line):oddsStr(q.price);
       const on=!!view().picks[g.id+"_"+k];const who=shared?[]:others().filter(([,d])=>d.picks&&d.picks[g.id+"_"+k]);
-      return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}${who.length?`<span class="who" title="Also picked by ${esc(who.map(([,d])=>d.name||"Player").join(", "))}">${esc(who.map(([,d])=>(d.name||"?").charAt(0).toUpperCase()).join(""))}</span>`:""}</button>`;};
+      return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${q.price==null?"pick'em":oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}${who.length?`<span class="who" title="Also picked by ${esc(who.map(([,d])=>d.name||"Player").join(", "))}">${esc(who.map(([,d])=>(d.name||"?").charAt(0).toUpperCase()).join(""))}</span>`:""}</button>`;};
     const d=new Date(g.kick),c=view().conf[g.id];
     return `<div class="game"><div class="kick">${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
       <span></span><span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>

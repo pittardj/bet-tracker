@@ -50,6 +50,7 @@ td.best{background:var(--best);font-weight:600;box-shadow:inset 0 0 0 1px var(--
 td small{color:var(--muted);font-size:.72rem;margin-left:4px}
 tr.cons td{font-weight:600}
 tr.open td{color:var(--muted)}
+tr.contest td:first-child::after{content:"pick'em contest";margin-left:6px;font-size:.62rem;font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--bg);padding:1px 5px;border-radius:99px}
 tr.ex td:first-child::after{content:"exchange";margin-left:6px;font-size:.62rem;font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--exink);background:var(--ex);padding:1px 5px;border-radius:99px}
 td.hold{color:var(--muted)}
 .sum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem}
@@ -79,7 +80,7 @@ td.hold{color:var(--muted)}
     </div>
   </div>
   <div id="games"></div>
-  <div class="foot">Shaded cells are the best number for that side among sportsbooks and exchanges (a better line first, then a better price). Hold is the book's built-in margin on that market; lower is better for you. Polymarket and Kalshi prices are the current ask converted to American odds, before exchange fees, and can move fast. Sportsbook lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
+  <div class="foot">Shaded cells are the best number for that side among sportsbooks and exchanges (a better line first, then a better price). Hold is the book's built-in margin on that market; lower is better for you. Splash shows the finalized Pick 5 contest spreads, which have no odds. Polymarket and Kalshi prices are the current ask converted to American odds, before exchange fees, and can move fast. Sportsbook lines via <a id="src" href="https://www.vegasinsider.com/nfl/odds/las-vegas/" target="_blank" rel="noopener">VegasInsider</a>. 21+. Gambling problem? Call 1-800-GAMBLER.</div>
 </div>
 <script>
 (function(){
@@ -88,7 +89,7 @@ const qs=new URLSearchParams(location.search);
 if(qs.get("theme")==="dark"||qs.get("theme")==="light")document.documentElement.dataset.theme=qs.get("theme");
 if(qs.get("bg")==="transparent")document.body.classList.add("transparent");
 const DATA_URL=qs.get("data")||"../lines.json";
-const EXCH=new Set(["Polymarket","Kalshi"]);
+const EXCH=new Set(["Polymarket","Kalshi"]);const CONTEST=new Set(["Splash"]);
 let board=null,market="all";
 try{market=localStorage.getItem("cmp-market")||"all";$("showEx").checked=localStorage.getItem("cmp-ex")!=="0";}catch(_){}
 
@@ -107,7 +108,7 @@ const SIDES=[
   {k:"am",m:"ml",    li:null,pi:6,line:()=>null},
   {k:"hm",m:"ml",    li:null,pi:7,line:()=>null},
 ];
-function val(a,s){if(!a)return null;const p=a[s.pi];if(p==null)return null;const l=s.line(a);if(s.li!=null&&l==null)return null;return{l,p};}
+function val(a,s){if(!a)return null;const p=a[s.pi];const l=s.line(a);if(s.li!=null&&l==null)return null;if(p==null&&s.li==null)return null;return{l,p};}
 function better(s,x,y){if(!y)return true;if(s.li!=null&&x.l!==y.l)return s.hi?x.l>y.l:x.l<y.l;return dec(x.p)>dec(y.p);}
 const hold=(p1,p2)=>p1==null||p2==null?null:imp(p1)+imp(p2)-1;
 const holdTxt=h=>h==null?"–":(h*100).toFixed(1)+"%";
@@ -124,16 +125,16 @@ function render(){
   const games=board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3);
   const wrapCls=market==="all"?"":["spread","total","ml"].filter(m=>m!==market).map(m=>"hide-"+m).join(" ");
   $("games").innerHTML=games.map(g=>{
-    const best={};for(const s of SIDES){let bv=null,bb=[];for(const b of books){if(b==="Consensus"||b==="Open")continue;const v=val(g.b[b],s);if(!v)continue;
+    const best={};for(const s of SIDES){let bv=null,bb=[];for(const b of books){if(b==="Consensus"||b==="Open")continue;const v=val(g.b[b],s);if(!v||v.p==null)continue;
       if(!bv||better(s,v,bv)){bv=v;bb=[b];}else if(!better(s,bv,v))bb.push(b);}best[s.k]={v:bv,books:bb};}
     const cell=(b,s)=>{const v=val(g.b[b],s);const isBest=best[s.k].books.includes(b)&&b!=="Consensus"&&b!=="Open";
       if(!v)return `<td class="num c-${s.m}">–</td>`;
       const top=s.k==="o"?"o"+v.l:s.k==="u"?"u"+v.l:s.li!=null?ln(v.l):"";
-      return `<td class="num c-${s.m}${isBest?" best":""}">${top?esc(top)+"<small>"+esc(odds(v.p))+"</small>":esc(odds(v.p))}</td>`;};
+      return `<td class="num c-${s.m}${isBest?" best":""}">${top?esc(top)+"<small>"+esc(v.p==null?"pick'em":odds(v.p))+"</small>":esc(odds(v.p))}</td>`;};
     const rows=books.map(b=>{const a=g.b[b];
       const hs=a&&a[1]!=null&&a[2]!=null?hold(a[1],a[2]):null,ht=a&&a[4]!=null&&a[5]!=null?hold(a[4],a[5]):null,hm=a&&a[6]!=null&&a[7]!=null?hold(a[6],a[7]):null;
       const link=g.links&&g.links[b];
-      return `<tr class="${b==="Consensus"?"cons":b==="Open"?"open":EXCH.has(b)?"ex":""}"><td>${link?`<a href="${esc(link)}" target="_blank" rel="noopener">${esc(b)}</a>`:esc(b==="Open"?"Opening line":b)}</td>${SIDES.map(s=>cell(b,s)).join("")}
+      return `<tr class="${b==="Consensus"?"cons":b==="Open"?"open":EXCH.has(b)?"ex":CONTEST.has(b)?"contest":""}"><td>${link?`<a href="${esc(link)}" target="_blank" rel="noopener">${esc(b)}</a>`:esc(b==="Open"?"Opening line":b)}</td>${SIDES.map(s=>cell(b,s)).join("")}
         <td class="num hold c-spread">${holdTxt(hs)}</td><td class="num hold c-total">${holdTxt(ht)}</td><td class="num hold c-ml">${holdTxt(hm)}</td></tr>`;}).join("");
     const sum=SIDES.filter(s=>market==="all"||s.m===market).map(s=>{const b=best[s.k];if(!b.v)return"";
       const name=s.k==="as"?g.a:s.k==="hs"?g.h:s.k==="o"?"Over":s.k==="u"?"Under":s.k==="am"?g.a+" ML":g.h+" ML";
