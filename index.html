@@ -47,6 +47,8 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .odd .bk{font-family:var(--body);font-size:.62rem;color:var(--accent)}
 .odd.sel{background:var(--sel);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .odd:disabled{opacity:.4;cursor:default}
+.game.withsp{grid-template-columns:minmax(0,1fr) repeat(4,minmax(52px,auto)) 48px}.game.withsp .conf{grid-column:6}.odd.spl{background:color-mix(in srgb,#2f6fd6 12%,var(--bg))}.colh.spl{color:#2f6fd6}
+@media (max-width:460px){.game.withsp{grid-template-columns:minmax(50px,1fr) repeat(4,minmax(44px,auto)) 38px;gap:4px 3px;padding:8px 6px}.game.withsp .tm{font-size:.85rem;white-space:nowrap}.game.withsp .tm .note{display:none}.game.withsp .odd{font-size:.74rem;padding:4px 2px}.game.withsp .colh{font-size:.6rem;letter-spacing:.03em}.game.withsp .conf{padding-left:3px}.game.withsp .conf input{width:34px}}
 .conf{grid-column:5;grid-row:2/span 3;display:flex;flex-direction:column;align-items:center;gap:2px;border-left:1px dashed var(--line);padding-left:6px;align-self:stretch;justify-content:center}
 .conf input{width:44px;text-align:center;font-family:var(--mono);font-size:1rem;padding:6px 2px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
 .conf input.set{border-color:var(--accent);background:var(--sel)}
@@ -159,18 +161,20 @@ function render(){
     if([...sel.options].some(o=>o.value===state.book))sel.value=state.book;}
   const book=sel.value,now=Date.now();
   const games=board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3);
+  const showSp=(board.books||[]).includes("Splash")&&book!=="Splash";
   const ae=document.activeElement;const fid=ae&&ae.dataset.conf;const cid=ae&&ae.dataset.cin;
   $("games").innerHTML=games.map(g=>{
-    const cell=k=>{const q=quote(g,k,book);if(!q)return `<button type="button" class="odd" disabled>–</button>`;
+    const sp=showSp&&g.b&&g.b.Splash;
+    const cell=(k,bk=book)=>{const isSp=bk==="Splash"&&book!=="Splash";const q=quote(g,k,bk);if(!q)return `<button type="button" class="odd${isSp?" spl":""}" disabled>–</button>`;
       const top=k==="o"?"o"+q.line:k==="u"?"u"+q.line:q.line!==undefined?fmtLine(q.line):oddsStr(q.price);
-      const on=!!view().picks[g.id+"_"+k];const who=shared?[]:others().filter(([,d])=>d.picks&&d.picks[g.id+"_"+k]);
-      return `<button type="button" class="odd${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}" aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined?`<small>${q.price==null?"pick'em":oddsStr(q.price)}</small>`:""}${book==="Best"?`<span class="bk">${esc(q.book)}</span>`:""}${who.length?`<span class="who" title="Also picked by ${esc(who.map(([,d])=>d.name||"Player").join(", "))}">${esc(who.map(([,d])=>(d.name||"?").charAt(0).toUpperCase()).join(""))}</span>`:""}</button>`;};
+      const pk=view().picks[g.id+"_"+k];const on=!!pk&&(!(k==="sa"||k==="sh")||!showSp||(pk.book==="Splash")===isSp);const who=shared?[]:others().filter(([,d])=>d.picks&&d.picks[g.id+"_"+k]);
+      return `<button type="button" class="odd${isSp?" spl":""}${on?" sel":""}" aria-pressed="${on}" data-g="${g.id}" data-k="${k}"${isSp?' data-bk="Splash"':""} aria-label="${esc(pickText(g,k))} ${esc(fmtQ(k,q))}${book==="Best"?" at "+esc(q.book):""}">${top}${q.line!==undefined&&!isSp?`<small>${q.price==null?"pick'em":oddsStr(q.price)}</small>`:""}${book==="Best"&&!isSp?`<span class="bk">${esc(q.book)}</span>`:""}${who.length?`<span class="who" title="Also picked by ${esc(who.map(([,d])=>d.name||"Player").join(", "))}">${esc(who.map(([,d])=>(d.name||"?").charAt(0).toUpperCase()).join(""))}</span>`:""}</button>`;};
     const d=new Date(g.kick),c=view().conf[g.id];
-    return `<div class="game"><div class="kick">${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
-      <span></span><span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
+    return `<div class="game${sp?" withsp":""}"><div class="kick">${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} · ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div>
+      <span></span>${sp?`<span class="colh spl">Splash</span>`:""}<span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
       <label class="conf"><span class="colh">Conf</span><input id="c-${g.id}" data-conf="${g.id}" class="${c!=null?"set":""}" inputmode="numeric" maxlength="2" placeholder="–" value="${c!=null?c:""}" aria-label="Confidence 1 to 10, ${esc(g.away)} at ${esc(g.home)}"></label>
-      <span class="tm" title="${esc(g.away)}">${esc(g.a)} <span class="note">${esc(nick(g.away))}</span></span>${cell("sa")}${cell("o")}${cell("ma")}
-      <span class="tm" title="${esc(g.home)}">@ ${esc(g.h)} <span class="note">${esc(nick(g.home))}</span></span>${cell("sh")}${cell("u")}${cell("mh")}${commentRow(g)}</div>`;}).join("")||`<p class="note">No upcoming games right now. Check back when next week's lines post.</p>`;
+      <span class="tm" title="${esc(g.away)}">${esc(g.a)} <span class="note">${esc(nick(g.away))}</span></span>${sp?cell("sa","Splash"):""}${cell("sa")}${cell("o")}${cell("ma")}
+      <span class="tm" title="${esc(g.home)}">@ ${esc(g.h)} <span class="note">${esc(nick(g.home))}</span></span>${sp?cell("sh","Splash"):""}${cell("sh")}${cell("u")}${cell("mh")}${commentRow(g)}</div>`;}).join("")||`<p class="note">No upcoming games right now. Check back when next week's lines post.</p>`;
   if(fid){const el=$("c-"+fid);if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(_){}}}
   if(cid){const el=$("cin-"+cid);if(el){el.focus();const n=el.value.length;try{el.setSelectionRange(n,n);}catch(_){}}}
   renderTray(games);renderAuth();renderH2H(games);
@@ -192,8 +196,9 @@ function renderTray(games){renderShared();
 }
 $("games").addEventListener("click",e=>{const b=e.target.closest("button[data-g]");if(!b||shared)return;
   const g=board.games.find(x=>x.id===b.dataset.g),k=b.dataset.k,id=g.id+"_"+k;
-  if(state.picks[id])delete state.picks[id];
-  else{const q=quote(g,k,$("book").value);if(!q)return;state.picks[id]={gameId:g.id,side:k,line:q.line===undefined?null:q.line,price:q.price,book:q.book,text:pickText(g,k),at:new Date().toISOString()};}
+  const bk=b.dataset.bk||$("book").value;const ex=state.picks[id];
+  if(ex&&(!(k==="sa"||k==="sh")||(ex.book==="Splash")===(bk==="Splash")))delete state.picks[id];
+  else{const q=quote(g,k,bk);if(!q)return;state.picks[id]={gameId:g.id,side:k,line:q.line===undefined?null:q.line,price:q.price,book:q.book,text:pickText(g,k),at:new Date().toISOString()};}
   if(user&&players[user.uid])players[user.uid]={...players[user.uid],picks:state.picks};save();render();});
 $("games").addEventListener("input",e=>{const t=e.target;if(!t.dataset.conf)return;if(shared){t.value=shared.conf[t.dataset.conf]||"";return;}t.value=t.value.replace(/[^0-9]/g,"").slice(0,2);
   if(t.value==="")delete state.conf[t.dataset.conf];else{state.conf[t.dataset.conf]=Math.max(1,Math.min(10,+t.value));}
