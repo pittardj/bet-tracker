@@ -52,6 +52,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .conf{grid-column:5;grid-row:2/span 3;display:flex;flex-direction:column;align-items:center;gap:2px;border-left:1px dashed var(--line);padding-left:6px;align-self:stretch;justify-content:center}
 .conf input{width:44px;text-align:center;font-family:var(--mono);font-size:1rem;padding:6px 2px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
 .conf input.set{border-color:var(--accent);background:var(--sel)}
+.sheetwrap{overflow-x:auto;margin:0 -4px}.ptab{width:100%;border-collapse:collapse;font-size:.9rem}.ptab th{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:.68rem;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}.ptab td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}.ptab .r{text-align:right}.ptab .c{text-align:center}.ptab .rn{color:var(--muted);width:1%;font-family:var(--mono);font-size:.8rem}.ptab tr.z td{background:color-mix(in srgb,var(--line) 25%,transparent)}.ptab tr.clv td{background:color-mix(in srgb,var(--pos) 10%,transparent)}.ptab td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}.ptab .x{padding:2px 8px}.clvtag{font-size:.7rem;font-weight:700;color:var(--pos);border:1px solid var(--pos);border-radius:4px;padding:0 4px}.stpill{display:inline-block;padding:2px 8px;border-radius:99px;font-weight:700;font-size:.8rem}.stpill.win,.stpill.won{background:color-mix(in srgb,var(--pos) 16%,transparent);color:var(--pos)}.stpill.lose,.stpill.lost{background:color-mix(in srgb,var(--neg) 14%,transparent);color:var(--neg)}.stpill.push{background:color-mix(in srgb,var(--muted) 16%,transparent);color:var(--muted)}.ptab tr.st-win td:first-child,.ptab tr.st-won td:first-child{box-shadow:inset 4px 0 var(--pos)}.ptab tr.st-lose td:first-child,.ptab tr.st-lost td:first-child{box-shadow:inset 4px 0 var(--neg)}
 .tray{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-between;align-items:center;font-size:.88rem;border-top:1px dashed var(--line);padding-top:8px}
 .row:first-child{border-top:0;padding-top:0}
@@ -147,10 +148,10 @@ function pickText(g,k){return k==="sa"?nick(g.away):k==="sh"?nick(g.home):k==="o
 function fmtQ(k,q){if(!q)return"–";if(q.line===undefined)return oddsStr(q.price);return (k==="o"?"o"+q.line:k==="u"?"u"+q.line:fmtLine(q.line))+" "+(q.price==null?"pick'em":oddsStr(q.price));}
 function move(k,mine,now){if(!now)return null;
   if(mine.line!=null&&now.line!==undefined&&mine.line!==now.line){const d=k==="o"?now.line-mine.line:mine.line-now.line;
-    return{c:d>0?"pos":"neg",t:`${d>0?"▲ +":"▼ "}${Math.abs(d)} pt${Math.abs(d)===1?"":"s"} ${d>0?"better":"worse"} than now`};}
-  if(mine.price==null||now.price==null)return{c:"",t:"no move"};
-  const v=dec(mine.price)/dec(now.price)-1;if(Math.abs(v)<.0005)return{c:"",t:"no move"};
-  return{c:v>0?"pos":"neg",t:`${v>0?"▲":"▼"} ${pct(v)} vs now`};}
+    return{c:d>0?"pos":"neg",short:`${d>0?"+":"−"}${Math.abs(d)}`,t:`${d>0?"▲ +":"▼ "}${Math.abs(d)} pt${Math.abs(d)===1?"":"s"} ${d>0?"better":"worse"} than now`};}
+  if(mine.price==null||now.price==null)return{c:"",short:"0",t:"no move"};
+  const v=dec(mine.price)/dec(now.price)-1;if(Math.abs(v)<.0005)return{c:"",short:"0",t:"no move"};
+  return{c:v>0?"pos":"neg",short:pct(v),t:`${v>0?"▲":"▼"} ${pct(v)} vs now`};}
 
 function render(){
   if(!board)return;
@@ -184,15 +185,26 @@ function renderShared(){const bar=$("sharedBar");if(!shared){bar.hidden=true;ret
   $("saveShared").onclick=()=>{Object.assign(state.picks,shared.picks);Object.assign(state.conf,shared.conf);save();exitShared();};
   $("exitShared").onclick=exitShared;}
 function exitShared(){shared=null;history.replaceState(null,"",location.pathname+(qs.get("bg")?"?bg="+qs.get("bg"):""));render();}
+function pickStatus(p,g){const lv=g&&g.live;if(!lv||lv.state==="pre"||lv.a==null||lv.h==null)return null;
+  const L=p.line==null?0:+p.line,m=lv.a-lv.h,tot=lv.a+lv.h;let r=null;
+  if(p.side==="sa")r=m+L;else if(p.side==="sh")r=-m+L;else if(p.side==="ma")r=m;else if(p.side==="mh")r=-m;else if(p.side==="o")r=tot-L;else if(p.side==="u")r=L-tot;
+  if(r==null)return null;const by=Math.abs(r),b=by%1?by.toFixed(1):String(by);
+  if(lv.state==="post")return r>0?{k:"won",t:"Won"}:r<0?{k:"lost",t:"Lost"}:{k:"push",t:"Push"};
+  return r>0?{k:"win",t:"Winning by "+b}:r<0?{k:"lose",t:"Losing by "+b}:{k:"push",t:"Even"};}
 function renderTray(games){renderShared();
   const t=$("tray");const list=Object.values(view().picks).filter(p=>games.some(g=>g.id===p.gameId));
   if(!list.length){t.hidden=true;return;}t.hidden=false;
   t.innerHTML=`<div class="row"><span class="lbl">${shared?esc(shared.name?shared.name+"'s":"Shared")+" picks":"Your picks"} (${list.length})</span><span class="btns"><span class="toast" id="toast" aria-live="polite"></span><button type="button" data-copy="1">Copy picks</button>${shared?"":`<button type="button" class="primary" data-share="1">Share link</button><button type="button" data-clear="1">Clear all</button>`}</span></div>`+
-    list.map(p=>{const g=board.games.find(x=>x.id===p.gameId);const cons=quote(g,p.side,"Consensus");const mine={line:p.line,price:p.price};const mv=move(p.side,mine,cons);const c=view().conf[p.gameId];p.text=p.text||pickText(g,p.side);
-      return `<div class="row"><span><strong>${esc(p.text)}</strong>${c!=null?` <span class="pill">Conf ${c}</span>`:""} <span class="note">${esc(g.away)} @ ${esc(g.home)}</span><br>
-        <span class="num">Picked ${esc(fmtQ(p.side,p.line==null?{price:p.price}:{line:p.line,price:p.price}))}</span> <span class="note">${esc(p.book==="Best"?"":p.book)} ${esc(fmtAt(p.at))}</span><br>
-        <span class="num">Now ${esc(fmtQ(p.side,cons))}</span> <span class="note">consensus</span>${mv?` <span class="num ${mv.c}">${mv.t}</span>`:""}</span>
-        ${shared?"":`<button type="button" data-rm="${p.gameId}_${p.side}" aria-label="Remove pick">×</button>`}</div>`;}).join("");
+    `<div class="sheetwrap"><table class="ptab"><thead><tr><th class="rn"></th><th>Game</th><th>Pick</th><th class="c">Conf</th><th class="r">Picked</th><th>Book</th><th class="r">Now (cons.)</th><th class="r">Move</th><th>Status</th><th>Time</th>${shared?"":"<th></th>"}</tr></thead><tbody>`+
+    list.map((p,i)=>{const g=board.games.find(x=>x.id===p.gameId);const cons=quote(g,p.side,"Consensus");const mine={line:p.line,price:p.price};const mv=move(p.side,mine,cons);const c=view().conf[p.gameId];p.text=p.text||pickText(g,p.side);
+      const st=pickStatus(p,g);const good=mv&&mv.c==="pos";
+      const short=q=>!q?"–":q.line===undefined||q.line===null?oddsStr(q.price):(p.side==="o"?"o"+q.line:p.side==="u"?"u"+q.line:fmtLine(q.line))+(q.price==null?"":" "+oddsStr(q.price));
+      return `<tr class="${i%2?"z":""}${good?" clv":""}${st?" st-"+st.k:""}"><td class="rn">${i+1}</td><td class="g">${esc(g.a)} @ ${esc(g.h)} <span class="note">${esc(new Date(g.kick).toLocaleDateString(undefined,{weekday:"short"}))}</span></td>
+        <td><strong>${esc(p.text)}</strong>${good?' <span class="clvtag">+CLV</span>':""}</td><td class="c num">${c!=null?c:"–"}</td>
+        <td class="r num">${esc(short(p.line==null?{price:p.price}:{line:p.line,price:p.price}))}</td><td class="note">${esc(p.book==="Best"?"":p.book||"")}</td>
+        <td class="r num">${esc(short(cons))}</td><td class="r num ${mv?mv.c:""}">${mv?esc(mv.short):"–"}</td>
+        <td>${st?`<span class="stpill ${st.k}">${esc(st.t)}</span>`:'<span class="note">Not started</span>'}</td>
+        <td class="note">${esc(fmtAt(p.at))}</td>${shared?"":`<td><button type="button" class="x" data-rm="${p.gameId}_${p.side}" aria-label="Remove pick">×</button></td>`}</tr>`;}).join("")+`</tbody></table></div>`;
 }
 $("games").addEventListener("click",e=>{const b=e.target.closest("button[data-g]");if(!b||shared)return;
   const g=board.games.find(x=>x.id===b.dataset.g),k=b.dataset.k,id=g.id+"_"+k;
