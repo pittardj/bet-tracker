@@ -49,7 +49,7 @@
     fb=window.firebase;fb.initializeApp(cfg);fdb=fb.firestore();
     user=await new Promise(res=>{let done=false;const t=setTimeout(()=>{if(!done){done=true;res(null);}},6000);
       fb.auth().onAuthStateChanged(u=>{if(!done){done=true;clearTimeout(t);res(u);}else if(!!u!==!!user||(u&&user&&u.uid!==user.uid))location.reload();});});
-    if(user){try{group=await joinGroup(qs.get("g"));}catch(e){cloudMsg="Signed in, but your group couldn't load. Picks are saved in this browser for now.";group=null;}}
+    if(user){try{const rawGroup=qs.get("g");const wanted=rawGroup&&rawGroup!=="null"&&rawGroup!=="undefined"?rawGroup:null;group=await joinGroup(wanted);if(qs.has("g")&&!wanted){qs.delete("g");history.replaceState(null,"",location.pathname+(qs.toString()?"?"+qs:""));}}catch(e){cloudMsg="Signed in, but your group couldn't load. Picks are saved in this browser for now.";group=null;}}
   })();
   async function joinGroup(wanted){
     const uref=fdb.collection("users").doc(user.uid);const us=await uref.get();
