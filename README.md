@@ -27,3 +27,10 @@ Signing in with Google syncs a person's picks, confidence and comments across de
 
 ## Odds comparison (`/compare`)
 https://pittardj.github.io/bet-tracker/compare/ shows every game with all sportsbooks plus Polymarket and Kalshi side by side, the best number on each side highlighted, and each book's hold. Filter by market or hide exchanges. Exchange prices are the current ask converted to American odds, before fees. Embed with `?bg=transparent`.
+
+## How the public board is built
+`index.html` is generated from the Claude Bet Ledger page so both look and work the same:
+
+    python3 tools/build_public.py path/to/bet-ledger.html
+
+`shim.js` stands in for the Claude runtime: lines come from `lines.json`, picks sync through Firebase when signed in with Google (otherwise this browser), and the bet log stays in this browser. The previous standalone board is kept at `classic.html`.
