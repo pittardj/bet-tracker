@@ -503,8 +503,10 @@ let showAt=false;try{showAt=localStorage.getItem("bet-ledger-at")==="1";}catch(_
 let myId=null,playerRef=null,players={},names={},userApi=null,dirty=0,saveTimer=null,saving=Promise.resolve();
 function persistMine(){ // one document per player: players/<id> = {picks, conf}
   if(!playerRef){savePicksLocal();try{localStorage.setItem("bet-ledger-conf",JSON.stringify(confs));}catch(_){}return;}
-  dirty++;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{const body={picks,conf:confs,comments:myComments,at:new Date().toISOString()};
-    saving=saving.then(()=>playerRef.set(body)).catch(e=>{if(e&&e.code==="invalid_argument"){playerRef=null;$("saveNote").textContent="You can view picks here but not save your own. Ask for Contributor access.";}}).finally(()=>{dirty=Math.max(0,dirty-1);});},400);}
+  // Track the latest edit, not the number of clicks: clearing a debounce timer must not
+  // leave dirty permanently positive or let an older snapshot overwrite newer picks.
+  const version=++dirty;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{const body={picks,conf:confs,comments:myComments,at:new Date().toISOString()};
+    saving=saving.then(()=>playerRef.set(body)).catch(e=>{if(e&&e.code==="invalid_argument"){playerRef=null;savePicksLocal();try{localStorage.setItem("bet-ledger-conf",JSON.stringify(confs));}catch(_){}$("saveNote").textContent="Cloud save was rejected. Your picks are kept in this browser; check group access and Firestore rules.";}}).finally(()=>{if(dirty===version)dirty=0;});},400);}
 async function resolveNames(){if(!userApi)return;const ids=Object.keys(players).filter(id=>!(id in names));if(!ids.length)return;
   try{const ps=await userApi.profiles(ids);ids.forEach(id=>{names[id]=(ps&&ps[id]&&ps[id].name)||"Player";});}catch(_){ids.forEach(id=>names[id]="Player");}renderBoard();}
 const nameOf=id=>id===myId?"You":(names[id]||"Player");
