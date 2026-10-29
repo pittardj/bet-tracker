@@ -625,7 +625,7 @@ function moveVs(k,mine,now){if(!now)return null;
   return{cls:v>0?"pos":"neg",txt:`${v>0?"▲":"▼"} ${pct(v)}`};}
 function loggedSides(){return new Set(bets.filter(b=>b.gameId&&b.side).map(b=>pickId(b.gameId,b.side)));}
 function fmtAt(t){const d=new Date(t);return isNaN(d)?String(t):d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
-function fmtGameTime(t){const d=new Date(t);return isNaN(d)?"–":d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}
+function fmtGameTime(t){const d=new Date(t);return isNaN(d)?"–":d.toLocaleString(undefined,{weekday:"short",hour:"numeric",minute:"2-digit"});}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 /* ---------- form ---------- */
