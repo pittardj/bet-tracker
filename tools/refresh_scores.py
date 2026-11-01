@@ -63,7 +63,7 @@ def event_live(event: dict, updated_at: str) -> dict | None:
         home_score = int(home.get("score") or 0)
     except (TypeError, ValueError):
         return None
-    detail = status_type.get("shortDetail") or status_type.get("detail") or status_type.get("description") or ""
+    detail = status_type.get("description") or ("Final" if state == "post" else "Live" if state == "in" else "Scheduled")
     return {
         "state": state,
         "a": away_score,
@@ -112,7 +112,15 @@ def main() -> int:
         live = event_live(event, updated_at)
         if live is None:
             continue
-        game["live"] = live
+        previous = game.get("live") or {}
+        # Ignore routine game-clock ticks so the workflow only commits
+        # meaningful score, period, or status changes.
+        meaningful = any(
+            previous.get(field) != live.get(field)
+            for field in ("state", "a", "h", "period", "detail")
+        )
+        if meaningful:
+            game["live"] = live
         matched += 1
 
     if matched == 0:
@@ -121,10 +129,12 @@ def main() -> int:
             "in lines.json; refusing to overwrite the file"
         )
 
-    data["scoresUpdatedAt"] = updated_at
-    data["scoresSource"] = "ESPN"
-    DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    print(f"Updated scores for {matched} of {len(games)} listed games from ESPN at {updated_at}")
+    changed = sum(1 for game in games if game.get("live", {}).get("updatedAt") == updated_at)
+    if changed:
+        data["scoresUpdatedAt"] = updated_at
+        data["scoresSource"] = "ESPN"
+        DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    print(f"Matched {matched} of {len(games)} listed games; published {changed} meaningful score/status changes at {updated_at}")
     return 0
 
 
