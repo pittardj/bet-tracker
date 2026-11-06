@@ -465,8 +465,8 @@ function renderBoard(){
   $("boardTitle").textContent=board.label||"Lines";
   {const lt=board.games.map(g=>g.live&&g.live.updatedAt).filter(Boolean).sort().pop();$("boardNote").textContent=`${board.source||""} · lines ${fmtAt(board.updatedAt)}${lt?` · scores ${fmtAt(lt)}`:""}`;}
   checkRefreshDone();
-  const sel=$("boardBook");if(!sel.options.length){sel.innerHTML=["Consensus","Best"].concat(board.books.filter(n=>n!=="Consensus")).map(n=>`<option value="${esc(n)}">${n==="Best"?"Best price":esc(n)}</option>`).join("");
-    try{const v=localStorage.getItem("bet-ledger-book");if(v&&[...sel.options].some(o=>o.value===v))sel.value=v;}catch(_){}}
+  const sel=$("boardBook");const bsig=board.books.join("|");if(sel.dataset.sig!==bsig){const keep=sel.value;sel.dataset.sig=bsig;sel.innerHTML=["Consensus","Best"].concat(board.books.filter(n=>n!=="Consensus")).map(n=>`<option value="${esc(n)}">${n==="Best"?"Best price":esc(n)}</option>`).join("");
+    try{const v=keep||localStorage.getItem("bet-ledger-book");if(v&&[...sel.options].some(o=>o.value===v))sel.value=v;}catch(_){}}
   $("games").hidden=boardHidden;$("boardToggle").textContent=boardHidden?"Show":"Hide";
   if(boardHidden)return;
   const book=sel.value,now=Date.now();const logged=loggedSides(),selected=new Set(picks.map(p=>p.id));renderTray();

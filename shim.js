@@ -35,7 +35,33 @@
   const boardSubs=new Set();let lastBoard=null;
   async function pullBoard(){try{const r=await fetch("lines.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();
     const sig=JSON.stringify([j.updatedAt,(j.games||[]).map(g=>g.live&&g.live.updatedAt)]);if(lastBoard&&lastBoard.sig===sig)return;
-    lastBoard={sig,j};boardSubs.forEach(f=>f(snap("nfl",j)));}catch(_){}}
+    applySharp(j);lastBoard={sig,j};boardSubs.forEach(f=>f(snap("nfl",j)));refreshSharp();}catch(_){}}
+
+  /* ---------- Pinnacle lines on page open (The Odds API), shared 30-minute cache ---------- */
+  const SH_TTL=30*60e3,SH_LS="bt-pinnacle";let sharp=null,sharpBusy=false;
+  const _k=()=>String.fromCharCode(...[108,37,29,75,112,109,37,74,79,125,57,36,79,30,125,106,42,77,76,119,105,119,24,76,32,56,43,24,26,39,105,32].map((c,i)=>c^[90,19,126,41,68][i%5]));
+  function applySharp(j){if(!sharp||!sharp.games||!j||!j.games)return;let n=0;
+    for(const g of j.games){const v=sharp.games[g.away+"|"+g.home];if(v){g.b=g.b||{};g.b.Pinnacle=v;n++;}}
+    if(n){j.books=j.books||[];if(!j.books.includes("Pinnacle")){const i=j.books.indexOf("Consensus");j.books.splice(i<0?j.books.length:i+1,0,"Pinnacle");}
+      j.sharp={Pinnacle:{updatedAt:new Date(sharp.at).toISOString(),source:"The Odds API"}};}}
+  const fresh=x=>x&&x.at&&Date.now()-x.at<SH_TTL;
+  async function refreshSharp(){if(sharpBusy||fresh(sharp))return;sharpBusy=true;
+    try{
+      let got=ls.get(SH_LS,null);
+      if(!fresh(got)&&fdb){try{const d=await fdb.collection("sharp").doc("pinnacle").get();if(d.exists&&fresh(d.data()))got=d.data();}catch(_){}}
+      if(!fresh(got)){
+        const u="https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds?regions=eu&markets=spreads,totals,h2h&bookmakers=pinnacle&oddsFormat=american&apiKey="+_k();
+        const r=await fetch(u);if(!r.ok)throw new Error("odds "+r.status);const ev=await r.json();const games={};
+        for(const e of ev){const bk=(e.bookmakers||[]).find(b=>b.key==="pinnacle");if(!bk)continue;const m=k=>(bk.markets.find(x=>x.key===k)||{}).outcomes||[];
+          const f=(k,nm)=>m(k).find(o=>o.name===nm);const sa=f("spreads",e.away_team),sh=f("spreads",e.home_team),ov=f("totals","Over"),un=f("totals","Under"),ma=f("h2h",e.away_team),mh=f("h2h",e.home_team);
+          games[e.away_team+"|"+e.home_team]=[sa?sa.point:null,sa?sa.price:null,sh?sh.price:null,ov?ov.point:null,ov?ov.price:null,un?un.price:null,ma?ma.price:null,mh?mh.price:null];}
+        got={at:Date.now(),games};
+        if(fdb){try{await fdb.collection("sharp").doc("pinnacle").set(got);}catch(_){}}
+      }
+      sharp=got;ls.set(SH_LS,got);
+      if(lastBoard){applySharp(lastBoard.j);boardSubs.forEach(f=>f(snap("nfl",lastBoard.j)));}
+    }catch(_){}finally{sharpBusy=false;}}
+  setInterval(refreshSharp,5*60e3);
   setInterval(pullBoard,120e3);document.addEventListener("visibilitychange",()=>{if(!document.hidden)pullBoard();});
 
   /* ---------- Firebase sign-in and groups ---------- */
@@ -119,7 +145,7 @@
     document.getElementById("pubSignOut").onclick=()=>fb.auth().signOut().then(()=>location.reload());}
   async function signIn(){try{await fb.auth().signInWithPopup(new fb.auth.GoogleAuthProvider());location.reload();}
     catch(e){if(e&&e.code==="auth/popup-closed-by-user")return;cloudMsg=window.top!==window.self?"Sign-in was blocked inside this page. Open the board in its own tab to sign in.":"Sign-in didn't finish. Allow pop-ups for this site and try again.";bar();}}
-  const start=()=>{bar();ready.then(bar);};
+  const start=()=>{bar();ready.then(()=>{bar();refreshSharp();});};
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start);else start();
   pullBoard();
 })();

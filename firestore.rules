@@ -28,5 +28,13 @@ service cloud.firestore {
         allow delete: if request.auth != null && request.auth.uid == uid;
       }
     }
+    // Shared 30-minute cache of Pinnacle lines, filled by whichever visitor opens the board first
+    match /sharp/pinnacle {
+      allow read: if true;
+      allow write: if request.resource.data.keys().hasOnly(['at', 'games'])
+        && request.resource.data.at is number && request.resource.data.games is map
+        && request.resource.data.games.size() <= 40
+        && (resource == null || request.resource.data.at > resource.data.at + 600000);
+    }
   }
 }
