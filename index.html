@@ -198,6 +198,7 @@ body.viewer .ownerOnly{display:none!important}
 .ptab td.sc{white-space:nowrap}.ptab td.sc.lv b{color:var(--loss)}.kick .live{font-weight:700}.kick .live.lv{color:var(--loss)}
 .pbar{display:block;height:8px;border-radius:4px;background:color-mix(in srgb,currentColor 14%,transparent);overflow:hidden;margin-top:4px;min-width:64px}.pbar i{display:block;height:100%;border-radius:4px;background:var(--muted,#888)}.pbar.pos i{background:var(--win)}.pbar.neg i{background:var(--loss)}.pbar.gm{height:5px;color:inherit}.pbar.gm i{background:var(--loss)}.ptab td.sc.fin .pbar.gm i{background:var(--muted,#888)}.wp{display:block}
 .opn{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.78rem;color:var(--muted);text-align:center}.game.withop{grid-template-columns:minmax(72px,1fr) 40px repeat(3,minmax(58px,auto)) 52px}.game.withop .conf{grid-column:6}.game.withsp.withop{grid-template-columns:minmax(72px,1fr) 40px repeat(4,minmax(54px,auto)) 52px}.game.withsp.withop .conf{grid-column:7}@media (max-width:460px){.game.withop{grid-template-columns:minmax(40px,1fr) 30px repeat(3,minmax(44px,auto)) 36px;gap:4px 3px;padding:8px 6px}.game.withsp.withop{grid-template-columns:minmax(40px,1fr) 30px repeat(4,minmax(38px,auto)) 34px}.game.withop .tm .note{display:none}.game.withop .opn{font-size:.66rem}.game.withop .colh{font-size:.55rem;letter-spacing:0}}@media (min-width:900px){.games .game.withop{grid-template-columns:minmax(56px,1fr) 34px repeat(3,minmax(54px,auto)) 34px}.games .game.withsp.withop{grid-template-columns:minmax(56px,1fr) 34px repeat(4,minmax(50px,auto)) 32px}.games .game .opn{font-size:12px}}
+.game .tm .rec{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:400;font-size:.68rem;color:var(--muted);line-height:1.2;overflow:hidden;text-overflow:ellipsis}@media (min-width:900px){.games .game .tm .rec{font-size:11px}}
 </style>
 
 <div class="wrap">
@@ -458,7 +459,7 @@ async function runRefresh(k){if(refreshing)return;const mcp=window.claude&&claud
       c==="tool_error"?"The refresh task couldn't start: "+String(e.message||"").slice(0,140):"Couldn't start the refresh.";
     setRefreshUI(m,false);}}
 document.addEventListener("click",ev=>{const b=ev.target.closest&&ev.target.closest("[data-refresh]");if(b){ev.preventDefault();runRefresh(b.dataset.refresh);}});
-const recOf=ab=>board&&board.records&&ab?board.records[ab]||"":"";
+const recOf=ab=>board&&board.records&&ab?board.records[ab]||"":"";const atsOf=ab=>board&&board.ats&&ab?board.ats[ab]||"":"";const recLine=ab=>{const r=recOf(ab),t=atsOf(ab);const t2=t.replace(/-0$/,"");return (r?`<span class="rec">${esc(r)}</span>`:"")+(t2?`<span class="rec">ATS ${esc(t2)}</span>`:"");};
 function renderBoard(){
   const card=$("boardCard");if(!board||!board.games||!board.games.length){card.hidden=true;return;}card.hidden=false;
   $("boardTitle").textContent=board.label||"Lines";
@@ -484,8 +485,8 @@ function renderBoard(){
     return `<div class="game${sp?" withsp":""}${op!=null?" withop":""}"><div class="kick">${(()=>{const t=scoreTxt(g);return t?`<span class="live ${t.cls}">${t.cls==="lv"?"● ":""}${esc(t.s)} · ${esc(t.d)}</span>${t.cls==="lv"?`<span class="pbar gm" title="Game progress"><i style="width:${Math.round(gameDone(g.live)*100)}%"></i></span>`:""}`:`<span>${d.toLocaleDateString(undefined,{weekday:"short",month:"numeric",day:"numeric"})} ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span>`;})()}</div>
       <span></span>${op!=null?`<span class="colh">Open</span>`:""}${sp?`<span class="colh spl">Splash</span>`:""}<span class="colh">Spread</span><span class="colh">Total</span><span class="colh">ML</span>
       <label class="conf"><span class="colh">Conf</span><input id="conf-${g.id}" class="${confs[g.id]!=null?"set":""}" inputmode="numeric" maxlength="3" placeholder="–" value="${confs[g.id]!=null?esc(confs[g.id]):""}" data-conf="${g.id}" aria-label="Confidence for ${esc(g.away)} at ${esc(g.home)}, 1 to 10"></label>
-      <span class="tm" title="${esc(g.away)}${recOf(g.a)?" ("+esc(recOf(g.a))+")":""}">${esc(g.a)} ${recOf(g.a)?`<span class="rec">${esc(recOf(g.a))}</span> `:""}<span class="note">${esc(g.away.split(" ").pop())}</span></span>${op!=null?opn(op):""}${sp?cell("sa","Splash"):""}${cell("sa")}${cell("o")}${cell("ma")}
-      <span class="tm" title="${esc(g.home)}${recOf(g.h)?" ("+esc(recOf(g.h))+")":""}">@ ${esc(g.h)} ${recOf(g.h)?`<span class="rec">${esc(recOf(g.h))}</span> `:""}<span class="note">${esc(g.home.split(" ").pop())}</span></span>${op!=null?opn(-op):""}${sp?cell("sh","Splash"):""}${cell("sh")}${cell("u")}${cell("mh")}
+      <span class="tm" title="${esc(g.away)}${recOf(g.a)?" ("+esc(recOf(g.a))+(atsOf(g.a)?", ATS "+esc(atsOf(g.a)):"")+")":""}">${esc(g.a)} <span class="note">${esc(g.away.split(" ").pop())}</span>${recLine(g.a)}</span>${op!=null?opn(op):""}${sp?cell("sa","Splash"):""}${cell("sa")}${cell("o")}${cell("ma")}
+      <span class="tm" title="${esc(g.home)}${recOf(g.h)?" ("+esc(recOf(g.h))+(atsOf(g.h)?", ATS "+esc(atsOf(g.h)):"")+")":""}">@ ${esc(g.h)} <span class="note">${esc(g.home.split(" ").pop())}</span>${recLine(g.h)}</span>${op!=null?opn(-op):""}${sp?cell("sh","Splash"):""}${cell("sh")}${cell("u")}${cell("mh")}
       ${commentRow(g)}</div>`;}).join("")||`<p class="note">No upcoming games on this board.</p>`;
   if(fid){const el=$(fid);if(el){el.value=fv;el.focus();try{el.setSelectionRange(fs,fs);}catch(_){}}}
   renderH2H(board.games.filter(g=>new Date(g.kick).getTime()>now-4*3600e3));
